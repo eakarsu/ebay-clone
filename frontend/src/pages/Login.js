@@ -1,0 +1,131 @@
+import React, { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import {
+  Container,
+  Box,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  Divider,
+  Alert,
+} from '@mui/material';
+import { useAuth } from '../context/AuthContext';
+
+const Login = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
+
+  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const from = location.state?.from?.pathname || '/';
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError('');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      await login(formData.email, formData.password);
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err.response?.data?.error || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Container maxWidth="sm" sx={{ py: 8 }}>
+      <Paper sx={{ p: 4 }}>
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
+            Sign in to eBay
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            New to eBay?{' '}
+            <Link to="/register" style={{ color: '#3665f3' }}>
+              Create an account
+            </Link>
+          </Typography>
+        </Box>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <TextField
+            fullWidth
+            label="Email address"
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={handleChange}
+            margin="normal"
+            required
+            autoFocus
+          />
+          <TextField
+            fullWidth
+            label="Password"
+            name="password"
+            type="password"
+            value={formData.password}
+            onChange={handleChange}
+            margin="normal"
+            required
+          />
+
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            size="large"
+            disabled={loading}
+            sx={{
+              mt: 3,
+              mb: 2,
+              borderRadius: 5,
+              py: 1.5,
+              bgcolor: '#3665f3',
+              '&:hover': { bgcolor: '#2a4dc4' },
+            }}
+          >
+            {loading ? 'Signing in...' : 'Sign in'}
+          </Button>
+        </form>
+
+        <Divider sx={{ my: 3 }}>
+          <Typography variant="body2" color="text.secondary">
+            or
+          </Typography>
+        </Divider>
+
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Demo accounts:
+          </Typography>
+          <Typography variant="caption" display="block" color="text.secondary">
+            Buyer: jane@example.com / password123
+          </Typography>
+          <Typography variant="caption" display="block" color="text.secondary">
+            Seller: techdeals@example.com / password123
+          </Typography>
+        </Box>
+      </Paper>
+    </Container>
+  );
+};
+
+export default Login;
