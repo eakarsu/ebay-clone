@@ -271,4 +271,23 @@ export const bidRetractionService = {
   review: (id, data) => api.put(`/bid-retractions/${id}/review`, data),
 };
 
+// Upload Service
+export const uploadService = {
+  uploadSingle: (formData) => api.post('/upload/single', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  uploadMultiple: (formData) => api.post('/upload/multiple', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  uploadProductImages: (productId, formData) => api.post(`/upload/product/${productId}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  deleteProductImage: (productId, imageId) => api.delete(`/upload/product/${productId}/image/${imageId}`),
+  setPrimaryImage: (productId, imageId) => api.put(`/upload/product/${productId}/image/${imageId}/primary`),
+  reorderImages: (productId, imageOrder) => api.put(`/upload/product/${productId}/reorder`, { imageOrder }),
+  uploadAvatar: (formData) => api.post('/upload/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+};
+
 export default api;

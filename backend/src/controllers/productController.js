@@ -23,6 +23,19 @@ const getAllProducts = async (req, res, next) => {
       sortOrder = 'desc',
       search,
       sellerId,
+      // New filters
+      freeShipping,
+      location,
+      state,
+      country,
+      brand,
+      acceptsOffers,
+      freeReturns,
+      topRatedSeller,
+      minSellerRating,
+      endingWithin,
+      localPickup,
+      featured,
     } = req.query;
 
     const offset = (page - 1) * limit;
@@ -76,6 +89,69 @@ const getAllProducts = async (req, res, next) => {
       paramCount++;
       whereConditions.push(`to_tsvector('english', p.title || ' ' || p.description) @@ plainto_tsquery('english', $${paramCount})`);
       queryParams.push(search);
+    }
+
+    // New filter conditions
+    if (freeShipping === 'true') {
+      whereConditions.push(`p.free_shipping = true`);
+    }
+
+    if (location) {
+      paramCount++;
+      whereConditions.push(`(LOWER(p.shipping_from_city) LIKE LOWER($${paramCount}) OR LOWER(p.shipping_from_state) LIKE LOWER($${paramCount}))`);
+      queryParams.push(`%${location}%`);
+    }
+
+    if (state) {
+      paramCount++;
+      whereConditions.push(`LOWER(p.shipping_from_state) = LOWER($${paramCount})`);
+      queryParams.push(state);
+    }
+
+    if (country) {
+      paramCount++;
+      whereConditions.push(`LOWER(p.shipping_from_country) = LOWER($${paramCount})`);
+      queryParams.push(country);
+    }
+
+    if (brand) {
+      paramCount++;
+      whereConditions.push(`LOWER(p.brand) = LOWER($${paramCount})`);
+      queryParams.push(brand);
+    }
+
+    if (acceptsOffers === 'true') {
+      whereConditions.push(`p.accepts_offers = true`);
+    }
+
+    if (freeReturns === 'true') {
+      whereConditions.push(`p.free_returns = true`);
+    }
+
+    if (topRatedSeller === 'true') {
+      whereConditions.push(`u.seller_rating >= 4.8`);
+    }
+
+    if (minSellerRating) {
+      paramCount++;
+      whereConditions.push(`u.seller_rating >= $${paramCount}`);
+      queryParams.push(parseFloat(minSellerRating));
+    }
+
+    if (endingWithin) {
+      // endingWithin is in hours
+      whereConditions.push(`p.listing_type IN ('auction', 'both')`);
+      paramCount++;
+      whereConditions.push(`p.auction_end <= NOW() + INTERVAL '1 hour' * $${paramCount}`);
+      queryParams.push(parseInt(endingWithin));
+    }
+
+    if (localPickup === 'true') {
+      whereConditions.push(`p.allows_local_pickup = true`);
+    }
+
+    if (featured === 'true') {
+      whereConditions.push(`p.featured = true`);
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -278,12 +354,21 @@ const getProductById = async (req, res, next) => {
       shippingFrom: {
         city: product.shipping_from_city,
         state: product.shipping_from_state,
+        zip: product.shipping_from_zip,
         country: product.shipping_from_country,
       },
       estimatedDeliveryDays: product.estimated_delivery_days,
+      handlingTime: product.handling_time,
+      shippingService: product.shipping_service,
+      packageWeight: product.package_weight ? parseFloat(product.package_weight) : null,
+      packageLength: product.package_length ? parseFloat(product.package_length) : null,
+      packageWidth: product.package_width ? parseFloat(product.package_width) : null,
+      packageHeight: product.package_height ? parseFloat(product.package_height) : null,
+      allowsLocalPickup: product.allows_local_pickup,
       brand: product.brand,
       model: product.model,
       sku: product.sku,
+      upc: product.upc,
       weight: product.weight,
       dimensions: product.dimensions,
       color: product.color,
@@ -293,6 +378,11 @@ const getProductById = async (req, res, next) => {
       watchCount: product.watch_count,
       featured: product.featured,
       acceptsOffers: product.accepts_offers,
+      minimumOfferAmount: product.minimum_offer_amount ? parseFloat(product.minimum_offer_amount) : null,
+      acceptsReturns: product.accepts_returns,
+      returnPeriod: product.return_period,
+      returnShippingPaidBy: product.return_shipping_paid_by,
+      freeReturns: product.free_returns,
       status: product.status,
       createdAt: product.created_at,
       category: { id: product.category_id, name: product.category_name, slug: product.category_slug },
@@ -333,8 +423,12 @@ const createProduct = async (req, res, next) => {
     const {
       title, description, categoryId, subcategoryId, condition, conditionDescription,
       listingType, startingPrice, buyNowPrice, reservePrice, auctionDuration,
-      quantity, shippingCost, freeShipping, shippingFromCity, shippingFromState,
-      estimatedDeliveryDays, brand, model, sku, weight, dimensions, color, size, material,
+      quantity, shippingCost, freeShipping, shippingFromCity, shippingFromState, shippingFromZip,
+      estimatedDeliveryDays, brand, model, sku, weight, dimensions, color, size, material, upc,
+      // New fields
+      handlingTime, shippingService, packageWeight, packageLength, packageWidth, packageHeight,
+      allowsLocalPickup, acceptsOffers, minimumOfferAmount,
+      acceptsReturns, returnPeriod, returnShippingPaidBy,
       images,
     } = req.body;
 
@@ -348,23 +442,31 @@ const createProduct = async (req, res, next) => {
     }
 
     const currentPrice = listingType === 'auction' || listingType === 'both' ? startingPrice : null;
+    const freeReturns = returnShippingPaidBy === 'seller';
 
     const result = await pool.query(
       `INSERT INTO products (
         seller_id, category_id, subcategory_id, title, slug, description,
         condition, condition_description, listing_type, starting_price, current_price,
         buy_now_price, reserve_price, auction_start, auction_end, quantity,
-        shipping_cost, free_shipping, shipping_from_city, shipping_from_state,
-        estimated_delivery_days, brand, model, sku, weight, dimensions, color, size, material
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+        shipping_cost, free_shipping, shipping_from_city, shipping_from_state, shipping_from_zip,
+        estimated_delivery_days, brand, model, sku, weight, dimensions, color, size, material, upc,
+        handling_time, shipping_service, package_weight, package_length, package_width, package_height,
+        allows_local_pickup, accepts_offers, minimum_offer_amount,
+        accepts_returns, return_period, return_shipping_paid_by, free_returns
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44)
       RETURNING *`,
       [
         req.user.id, categoryId, subcategoryId || null, title, slug, description,
         condition, conditionDescription || null, listingType, startingPrice || null, currentPrice,
         buyNowPrice || null, reservePrice || null, auctionStart, auctionEnd, quantity || 1,
-        shippingCost || 0, freeShipping || false, shippingFromCity, shippingFromState,
+        shippingCost || 0, freeShipping || false, shippingFromCity, shippingFromState, shippingFromZip || null,
         estimatedDeliveryDays || null, brand || null, model || null, sku || null,
-        weight || null, dimensions || null, color || null, size || null, material || null,
+        weight || null, dimensions || null, color || null, size || null, material || null, upc || null,
+        handlingTime || 1, shippingService || 'usps_priority', packageWeight || null,
+        packageLength || null, packageWidth || null, packageHeight || null,
+        allowsLocalPickup || false, acceptsOffers || false, minimumOfferAmount || null,
+        acceptsReturns !== false, returnPeriod || 30, returnShippingPaidBy || 'buyer', freeReturns,
       ]
     );
 

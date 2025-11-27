@@ -3,6 +3,17 @@ const Stripe = require('stripe');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// Get Stripe publishable key for frontend
+const getStripeConfig = async (req, res, next) => {
+  try {
+    res.json({
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Create or get Stripe customer
 const getOrCreateStripeCustomer = async (userId, email) => {
   const existingCustomer = await pool.query(
@@ -241,18 +252,137 @@ const getPaymentMethods = async (req, res, next) => {
   }
 };
 
+// Add payment method directly (without Stripe - for demo purposes)
+const addPaymentMethodDirect = async (req, res, next) => {
+  try {
+    const {
+      paymentType,
+      cardBrand,
+      cardLastFour,
+      cardExpMonth,
+      cardExpYear,
+      bankName,
+      bankAccountLastFour,
+      paypalEmail,
+      isDefault
+    } = req.body;
+
+    // If setting as default, unset other defaults first
+    if (isDefault) {
+      await pool.query(
+        'UPDATE payment_methods SET is_default = false WHERE user_id = $1 AND payment_type = $2',
+        [req.user.id, paymentType]
+      );
+    }
+
+    // Check if this is the first payment method of this type
+    const existingCount = await pool.query(
+      'SELECT COUNT(*) as count FROM payment_methods WHERE user_id = $1 AND payment_type = $2',
+      [req.user.id, paymentType]
+    );
+    const isFirstOfType = parseInt(existingCount.rows[0].count) === 0;
+
+    // Insert the payment method
+    const result = await pool.query(
+      `INSERT INTO payment_methods (
+        user_id, payment_type, is_default,
+        card_last_four, card_brand, card_exp_month, card_exp_year,
+        bank_name, bank_account_last_four, paypal_email
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id`,
+      [
+        req.user.id,
+        paymentType,
+        isDefault || isFirstOfType,
+        cardLastFour || null,
+        cardBrand || null,
+        cardExpMonth || null,
+        cardExpYear || null,
+        bankName || null,
+        bankAccountLastFour || null,
+        paypalEmail || null
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: 'Payment method added successfully',
+      paymentMethodId: result.rows[0].id
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Add payment method
 const addPaymentMethod = async (req, res, next) => {
   try {
-    const { paymentMethodId } = req.body;
+    const { paymentMethodId, setAsDefault } = req.body;
 
     const customerId = await getOrCreateStripeCustomer(req.user.id, req.user.email);
 
+    // Attach payment method to customer
     await stripe.paymentMethods.attach(paymentMethodId, {
       customer: customerId,
     });
 
-    res.json({ success: true, message: 'Payment method added' });
+    // Retrieve the payment method details from Stripe
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+
+    // If setting as default, unset other defaults first
+    if (setAsDefault) {
+      await pool.query(
+        'UPDATE payment_methods SET is_default = false WHERE user_id = $1 AND payment_type = $2',
+        [req.user.id, paymentMethod.type]
+      );
+    }
+
+    // Check if this is the first payment method of this type
+    const existingCount = await pool.query(
+      'SELECT COUNT(*) as count FROM payment_methods WHERE user_id = $1 AND payment_type = $2',
+      [req.user.id, paymentMethod.type]
+    );
+    const isFirstOfType = parseInt(existingCount.rows[0].count) === 0;
+
+    // Save to database
+    let result;
+    if (paymentMethod.type === 'card') {
+      result = await pool.query(
+        `INSERT INTO payment_methods (user_id, stripe_payment_method_id, payment_type, is_default,
+         card_last_four, card_brand, card_exp_month, card_exp_year)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [
+          req.user.id,
+          paymentMethodId,
+          'card',
+          setAsDefault || isFirstOfType,
+          paymentMethod.card.last4,
+          paymentMethod.card.brand,
+          paymentMethod.card.exp_month,
+          paymentMethod.card.exp_year,
+        ]
+      );
+    } else if (paymentMethod.type === 'us_bank_account') {
+      result = await pool.query(
+        `INSERT INTO payment_methods (user_id, stripe_payment_method_id, payment_type, is_default,
+         bank_name, bank_account_last_four)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+        [
+          req.user.id,
+          paymentMethodId,
+          'bank',
+          setAsDefault || isFirstOfType,
+          paymentMethod.us_bank_account.bank_name,
+          paymentMethod.us_bank_account.last4,
+        ]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Payment method added',
+      paymentMethodId: result?.rows[0]?.id
+    });
   } catch (error) {
     next(error);
   }
@@ -263,7 +393,32 @@ const removePaymentMethod = async (req, res, next) => {
   try {
     const { paymentMethodId } = req.params;
 
-    await stripe.paymentMethods.detach(paymentMethodId);
+    // Get the payment method from database to find Stripe ID
+    const dbResult = await pool.query(
+      'SELECT stripe_payment_method_id FROM payment_methods WHERE id = $1 AND user_id = $2',
+      [paymentMethodId, req.user.id]
+    );
+
+    if (dbResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Payment method not found' });
+    }
+
+    const stripePaymentMethodId = dbResult.rows[0].stripe_payment_method_id;
+
+    // Detach from Stripe if we have a Stripe ID
+    if (stripePaymentMethodId) {
+      try {
+        await stripe.paymentMethods.detach(stripePaymentMethodId);
+      } catch (stripeError) {
+        console.error('Stripe detach error:', stripeError.message);
+      }
+    }
+
+    // Delete from database
+    await pool.query(
+      'DELETE FROM payment_methods WHERE id = $1 AND user_id = $2',
+      [paymentMethodId, req.user.id]
+    );
 
     res.json({ success: true, message: 'Payment method removed' });
   } catch (error) {
@@ -386,11 +541,13 @@ const getPaymentHistory = async (req, res, next) => {
 };
 
 module.exports = {
+  getStripeConfig,
   createPaymentIntent,
   confirmPayment,
   processRefund,
   getPaymentMethods,
   addPaymentMethod,
+  addPaymentMethodDirect,
   removePaymentMethod,
   handleWebhook,
   getPaymentHistory,

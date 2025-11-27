@@ -9,6 +9,7 @@ router.get('/:sellerId', optionalAuth, sellerPerformanceController.getSellerPerf
 
 // Protected routes
 router.get('/', authenticateToken, sellerPerformanceController.getSellerPerformance);
+router.get('/dashboard', authenticateToken, sellerPerformanceController.getSellerPerformance);
 router.post('/calculate', authenticateToken, sellerPerformanceController.calculatePerformance);
 router.get('/defects/list', authenticateToken, sellerPerformanceController.getSellerDefects);
 router.post('/defects', authenticateToken, sellerPerformanceController.reportDefect);

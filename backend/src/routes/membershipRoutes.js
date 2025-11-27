@@ -9,6 +9,7 @@ router.get('/plans', membershipController.getMembershipPlans);
 
 // Protected routes
 router.get('/user', authenticateToken, membershipController.getUserMembership);
+router.get('/current', authenticateToken, membershipController.getUserMembership);
 router.post('/subscribe', authenticateToken, membershipController.subscribeMembership);
 router.post('/cancel', authenticateToken, membershipController.cancelMembership);
 router.get('/benefits', authenticateToken, membershipController.getMembershipBenefits);

@@ -28,6 +28,8 @@ import SecuritySettings from './pages/SecuritySettings';
 import SavedSearches from './pages/SavedSearches';
 import Profile from './pages/Profile';
 import MyListings from './pages/MyListings';
+import Addresses from './pages/Addresses';
+import PaymentMethods from './pages/PaymentMethods';
 
 // New Feature Pages
 import Collections from './pages/Collections';
@@ -62,6 +64,15 @@ import CharityListings from './pages/CharityListings';
 import ImportDuties from './pages/ImportDuties';
 import SellingLimits from './pages/SellingLimits';
 import VolumePricing from './pages/VolumePricing';
+
+// New USER_GUIDE.md Feature Pages
+import Membership from './pages/Membership';
+import GSP from './pages/GSP';
+import SellerPerformance from './pages/SellerPerformance';
+import ProxyBidding from './pages/ProxyBidding';
+import LocalPickup from './pages/LocalPickup';
+import Notifications from './pages/Notifications';
+import Messages from './pages/Messages';
 
 // Material UI Theme
 const theme = createTheme({
@@ -170,6 +181,8 @@ function App() {
                 <Route path="/returns/:id" element={<Returns />} />
                 <Route path="/security" element={<SecuritySettings />} />
                 <Route path="/saved-searches" element={<SavedSearches />} />
+                <Route path="/addresses" element={<Addresses />} />
+                <Route path="/payment-methods" element={<PaymentMethods />} />
 
                 {/* New Feature routes */}
                 <Route path="/collections" element={<Collections />} />
@@ -187,9 +200,20 @@ function App() {
                 {/* Static pages and redirects */}
                 <Route path="/deals" element={<Search />} />
                 <Route path="/categories" element={<Search />} />
-                <Route path="/notifications" element={<Orders />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/resolution" element={<Disputes />} />
+
+                {/* New USER_GUIDE.md Feature routes */}
+                <Route path="/membership" element={<Membership />} />
+                <Route path="/gsp" element={<GSP />} />
+                <Route path="/global-shipping" element={<GSP />} />
+                <Route path="/seller-performance" element={<SellerPerformance />} />
+                <Route path="/proxy-bidding" element={<ProxyBidding />} />
+                <Route path="/my-bids" element={<ProxyBidding />} />
+                <Route path="/local-pickup" element={<LocalPickup />} />
+                <Route path="/notifications" element={<Notifications />} />
+                <Route path="/messages" element={<Messages />} />
+                <Route path="/messages/:conversationId" element={<Messages />} />
 
                 {/* Help and info pages */}
                 <Route path="/help" element={<Help />} />

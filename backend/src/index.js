@@ -77,7 +77,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(limiter);
 
 // Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // API Routes
 app.use('/api/auth', authRoutes);

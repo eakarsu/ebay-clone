@@ -36,6 +36,12 @@ import {
   Dashboard as DashboardIcon,
   Inventory as InventoryIcon,
   Receipt as OrdersIcon,
+  Message as MessageIcon,
+  Gavel as BidsIcon,
+  CardMembership as MembershipIcon,
+  TrendingUp as PerformanceIcon,
+  Public as GlobalIcon,
+  LocationOn as PickupIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
@@ -192,6 +198,11 @@ const Header = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {user ? (
                 <>
+                  <IconButton component={Link} to="/messages">
+                    <Badge badgeContent={2} color="error">
+                      <MessageIcon />
+                    </Badge>
+                  </IconButton>
                   <IconButton component={Link} to="/notifications">
                     <Badge badgeContent={3} color="error">
                       <NotificationsIcon />
@@ -232,6 +243,14 @@ const Header = () => {
                       <ListItemIcon><DealsIcon /></ListItemIcon>
                       <ListItemText>My Offers</ListItemText>
                     </MenuItem>
+                    <MenuItem component={Link} to="/my-bids" onClick={handleCloseMenu}>
+                      <ListItemIcon><BidsIcon /></ListItemIcon>
+                      <ListItemText>My Bids</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/membership" onClick={handleCloseMenu}>
+                      <ListItemIcon><MembershipIcon /></ListItemIcon>
+                      <ListItemText>Membership</ListItemText>
+                    </MenuItem>
                     {user.isSeller && (
                       <>
                         <Divider />
@@ -246,6 +265,14 @@ const Header = () => {
                         <MenuItem component={Link} to="/orders?type=sales" onClick={handleCloseMenu}>
                           <ListItemIcon><OrdersIcon /></ListItemIcon>
                           <ListItemText>Sales</ListItemText>
+                        </MenuItem>
+                        <MenuItem component={Link} to="/seller-performance" onClick={handleCloseMenu}>
+                          <ListItemIcon><PerformanceIcon /></ListItemIcon>
+                          <ListItemText>Seller Performance</ListItemText>
+                        </MenuItem>
+                        <MenuItem component={Link} to="/gsp" onClick={handleCloseMenu}>
+                          <ListItemIcon><GlobalIcon /></ListItemIcon>
+                          <ListItemText>Global Shipping</ListItemText>
                         </MenuItem>
                       </>
                     )}
@@ -303,6 +330,27 @@ const Header = () => {
             <ListItem button component={Link} to="/sell" onClick={() => setMobileMenuOpen(false)}>
               <ListItemIcon><SellIcon /></ListItemIcon>
               <ListItemText primary="Sell" />
+            </ListItem>
+            <Divider />
+            <ListItem button component={Link} to="/messages" onClick={() => setMobileMenuOpen(false)}>
+              <ListItemIcon><MessageIcon /></ListItemIcon>
+              <ListItemText primary="Messages" />
+            </ListItem>
+            <ListItem button component={Link} to="/notifications" onClick={() => setMobileMenuOpen(false)}>
+              <ListItemIcon><NotificationsIcon /></ListItemIcon>
+              <ListItemText primary="Notifications" />
+            </ListItem>
+            <ListItem button component={Link} to="/my-bids" onClick={() => setMobileMenuOpen(false)}>
+              <ListItemIcon><BidsIcon /></ListItemIcon>
+              <ListItemText primary="My Bids" />
+            </ListItem>
+            <ListItem button component={Link} to="/membership" onClick={() => setMobileMenuOpen(false)}>
+              <ListItemIcon><MembershipIcon /></ListItemIcon>
+              <ListItemText primary="Membership" />
+            </ListItem>
+            <ListItem button component={Link} to="/local-pickup" onClick={() => setMobileMenuOpen(false)}>
+              <ListItemIcon><PickupIcon /></ListItemIcon>
+              <ListItemText primary="Local Pickup" />
             </ListItem>
             <Divider />
             <ListItem button component={Link} to="/help" onClick={() => setMobileMenuOpen(false)}>

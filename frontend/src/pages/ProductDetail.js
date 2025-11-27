@@ -39,6 +39,9 @@ import {
   Visibility,
   Store,
   Star,
+  Autorenew,
+  LocationOn,
+  Inventory2,
 } from '@mui/icons-material';
 import { formatDistanceToNow, format } from 'date-fns';
 import { productService, bidService, watchlistService, recentlyViewedService, getImageUrl } from '../services/api';
@@ -425,20 +428,73 @@ const ProductDetail = () => {
           </Box>
 
           {/* Shipping */}
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Paper sx={{ p: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
               <LocalShipping color={product.freeShipping ? 'success' : 'action'} />
-              <Box>
+              <Box sx={{ flex: 1 }}>
                 <Typography variant="subtitle2">
                   {product.freeShipping ? 'FREE Shipping' : `Shipping: $${product.shippingCost?.toFixed(2)}`}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Ships from {product.shippingFrom?.city}, {product.shippingFrom?.state}
+                  {product.shippingFromZip && ` ${product.shippingFromZip}`}
                 </Typography>
+                {product.shippingService && (
+                  <Typography variant="body2" color="text.secondary">
+                    Service: {product.shippingService.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </Typography>
+                )}
+                {product.handlingTime && (
+                  <Typography variant="body2" color="text.secondary">
+                    Handling time: {product.handlingTime} business day{product.handlingTime > 1 ? 's' : ''}
+                  </Typography>
+                )}
                 {product.estimatedDeliveryDays && (
                   <Typography variant="body2" color="text.secondary">
-                    Estimated {product.estimatedDeliveryDays} days delivery
+                    Estimated delivery: {product.estimatedDeliveryDays} days
                   </Typography>
+                )}
+              </Box>
+            </Box>
+          </Paper>
+
+          {/* Local Pickup */}
+          {product.allowsLocalPickup && (
+            <Paper sx={{ p: 2, mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <LocationOn color="primary" />
+                <Box>
+                  <Typography variant="subtitle2">Local pickup available</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Pick up from {product.shippingFrom?.city}, {product.shippingFrom?.state}
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
+          )}
+
+          {/* Returns */}
+          <Paper sx={{ p: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+              <Autorenew color={product.acceptsReturns ? 'success' : 'action'} />
+              <Box>
+                <Typography variant="subtitle2">
+                  {product.acceptsReturns ? (
+                    product.freeReturns ? 'Free returns' : `${product.returnPeriod || 30}-day returns`
+                  ) : 'No returns accepted'}
+                </Typography>
+                {product.acceptsReturns && (
+                  <>
+                    <Typography variant="body2" color="text.secondary">
+                      {product.freeReturns
+                        ? 'Seller pays for return shipping'
+                        : `${product.returnShippingPaidBy === 'buyer' ? 'Buyer' : 'Seller'} pays for return shipping`
+                      }
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Return period: {product.returnPeriod || 30} days
+                    </Typography>
+                  </>
                 )}
               </Box>
             </Box>
@@ -480,45 +536,209 @@ const ProductDetail = () => {
         </Typography>
 
         {/* Item Specifics - Two Column Layout */}
-        {product.specifications?.['Item Specifics'] && (
+        <Paper sx={{ mb: 4, overflow: 'hidden' }}>
+          <Box sx={{ bgcolor: '#f7f7f7', px: 3, py: 2, borderBottom: '1px solid #e5e5e5' }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Item specifics
+            </Typography>
+          </Box>
+          <Box sx={{ p: 0 }}>
+            <Grid container>
+              {/* Standard product fields */}
+              {product.condition && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                    <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                      <Typography variant="body2" color="text.secondary">Condition</Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {conditionLabels[product.condition] || product.condition}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {product.brand && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                    <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                      <Typography variant="body2" color="text.secondary">Brand</Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.brand}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {product.model && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                    <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                      <Typography variant="body2" color="text.secondary">Model</Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.model}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {product.upc && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                    <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                      <Typography variant="body2" color="text.secondary">UPC</Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.upc}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {product.sku && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                    <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                      <Typography variant="body2" color="text.secondary">SKU</Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.sku}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {product.color && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                    <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                      <Typography variant="body2" color="text.secondary">Color</Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.color}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {product.size && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                    <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                      <Typography variant="body2" color="text.secondary">Size</Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.size}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {product.material && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                    <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                      <Typography variant="body2" color="text.secondary">Material</Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.material}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {product.weight && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                    <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                      <Typography variant="body2" color="text.secondary">Weight</Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.weight}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {product.dimensions && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                    <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                      <Typography variant="body2" color="text.secondary">Dimensions</Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.dimensions}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+              {/* Custom specifications from seller */}
+              {product.specifications?.['Item Specifics']?.map((spec, idx) => (
+                <Grid item xs={12} md={6} key={idx}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      borderBottom: '1px solid #e5e5e5',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: '40%',
+                        bgcolor: '#f7f7f7',
+                        px: 2,
+                        py: 1.5,
+                        borderRight: '1px solid #e5e5e5',
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        {spec.name}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {spec.value}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        </Paper>
+
+        {/* Package Details - If available */}
+        {(product.packageWeight || product.packageLength) && (
           <Paper sx={{ mb: 4, overflow: 'hidden' }}>
             <Box sx={{ bgcolor: '#f7f7f7', px: 3, py: 2, borderBottom: '1px solid #e5e5e5' }}>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Item specifics
+                Package details
               </Typography>
             </Box>
             <Box sx={{ p: 0 }}>
               <Grid container>
-                {product.specifications['Item Specifics'].map((spec, idx) => (
-                  <Grid item xs={12} md={6} key={idx}>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        borderBottom: '1px solid #e5e5e5',
-                        '&:last-child': { borderBottom: idx % 2 === 0 ? '1px solid #e5e5e5' : 'none' },
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: '40%',
-                          bgcolor: '#f7f7f7',
-                          px: 2,
-                          py: 1.5,
-                          borderRight: '1px solid #e5e5e5',
-                        }}
-                      >
-                        <Typography variant="body2" color="text.secondary">
-                          {spec.name}
-                        </Typography>
+                {product.packageWeight && (
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                      <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                        <Typography variant="body2" color="text.secondary">Package weight</Typography>
                       </Box>
                       <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {spec.value}
+                          {product.packageWeight} {product.packageWeightUnit || 'lbs'}
                         </Typography>
                       </Box>
                     </Box>
                   </Grid>
-                ))}
+                )}
+                {product.packageLength && product.packageWidth && product.packageHeight && (
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                      <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                        <Typography variant="body2" color="text.secondary">Package dimensions</Typography>
+                      </Box>
+                      <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {product.packageLength} x {product.packageWidth} x {product.packageHeight} {product.dimensionUnit || 'in'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                )}
               </Grid>
             </Box>
           </Paper>

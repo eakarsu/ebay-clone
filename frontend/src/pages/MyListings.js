@@ -23,13 +23,24 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Menu,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Snackbar,
 } from '@mui/material';
 import {
   Add,
-  Visibility,
   Edit,
   Search,
   FilterList,
+  MoreVert,
+  Stop,
+  Replay,
+  Delete,
+  CloudUpload,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -45,6 +56,12 @@ const MyListings = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+
+  // Action menu state
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, type: '', product: null });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
     fetchListings();
@@ -85,7 +102,76 @@ const MyListings = () => {
   };
 
   const getTypeColor = (type) => {
-    return type === 'auction' ? 'secondary' : 'primary';
+    const colors = {
+      auction: 'secondary',
+      buy_now: 'primary',
+      both: 'info',
+    };
+    return colors[type] || 'default';
+  };
+
+  const getTypeLabel = (type) => {
+    const labels = {
+      auction: 'Auction',
+      buy_now: 'Fixed Price',
+      both: 'Both',
+    };
+    return labels[type] || type;
+  };
+
+  // Menu handlers
+  const handleMenuOpen = (event, product) => {
+    event.stopPropagation();
+    setAnchorEl(event.currentTarget);
+    setSelectedProduct(product);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+    setSelectedProduct(null);
+  };
+
+  // Action handlers
+  const handleEndListing = async () => {
+    if (!confirmDialog.product) return;
+    try {
+      await api.put(`/seller/products/${confirmDialog.product.id}/end`);
+      setSnackbar({ open: true, message: 'Listing ended successfully', severity: 'success' });
+      fetchListings();
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.error || 'Failed to end listing', severity: 'error' });
+    }
+    setConfirmDialog({ open: false, type: '', product: null });
+  };
+
+  const handleRelistItem = async () => {
+    if (!confirmDialog.product) return;
+    try {
+      const response = await api.post(`/seller/products/${confirmDialog.product.id}/relist`);
+      setSnackbar({ open: true, message: 'Item relisted successfully', severity: 'success' });
+      // Navigate to edit the new listing
+      navigate(`/sell/edit/${response.data.newProductId}`);
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.error || 'Failed to relist item', severity: 'error' });
+    }
+    setConfirmDialog({ open: false, type: '', product: null });
+  };
+
+  const handleDeleteListing = async () => {
+    if (!confirmDialog.product) return;
+    try {
+      await api.delete(`/seller/products/${confirmDialog.product.id}`);
+      setSnackbar({ open: true, message: 'Listing deleted successfully', severity: 'success' });
+      fetchListings();
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.error || 'Failed to delete listing', severity: 'error' });
+    }
+    setConfirmDialog({ open: false, type: '', product: null });
+  };
+
+  const openConfirmDialog = (type, product) => {
+    handleMenuClose();
+    setConfirmDialog({ open: true, type, product });
   };
 
   return (
@@ -94,13 +180,47 @@ const MyListings = () => {
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
           My Listings
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => navigate('/sell')}
-        >
-          Create New Listing
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={async () => {
+              try {
+                const response = await api.get('/seller/bulk-upload/sample-data', {
+                  responseType: 'blob',
+                });
+                const blob = new Blob([response.data], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', 'sample_products.csv');
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.URL.revokeObjectURL(url);
+                setSnackbar({ open: true, message: 'Sample data downloaded! 18+ products with all types.', severity: 'success' });
+              } catch (err) {
+                setSnackbar({ open: true, message: 'Failed to download sample data', severity: 'error' });
+              }
+            }}
+          >
+            Sample Data
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<CloudUpload />}
+            onClick={() => navigate('/bulk-upload')}
+          >
+            Bulk Upload
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => navigate('/sell')}
+          >
+            Create New Listing
+          </Button>
+        </Box>
       </Box>
 
       {error && (
@@ -161,8 +281,9 @@ const MyListings = () => {
               }}
             >
               <MenuItem value="">All</MenuItem>
-              <MenuItem value="fixed">Fixed Price</MenuItem>
+              <MenuItem value="buy_now">Fixed Price</MenuItem>
               <MenuItem value="auction">Auction</MenuItem>
+              <MenuItem value="both">Both</MenuItem>
             </Select>
           </FormControl>
 
@@ -264,7 +385,7 @@ const MyListings = () => {
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={product.listingType === 'auction' ? 'Auction' : 'Fixed'}
+                          label={getTypeLabel(product.listingType)}
                           size="small"
                           variant="outlined"
                           color={getTypeColor(product.listingType)}
@@ -280,19 +401,18 @@ const MyListings = () => {
                           size="small"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/product/${product.id}`);
+                            navigate(`/sell/edit/${product.id}`);
                           }}
+                          title="Edit listing"
                         >
-                          <Visibility />
+                          <Edit />
                         </IconButton>
                         <IconButton
                           size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/sell/edit/${product.id}`);
-                          }}
+                          onClick={(e) => handleMenuOpen(e, product)}
+                          title="More actions"
                         >
-                          <Edit />
+                          <MoreVert />
                         </IconButton>
                       </TableCell>
                     </TableRow>
@@ -315,6 +435,88 @@ const MyListings = () => {
           </>
         )}
       </Paper>
+
+      {/* Actions Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMenuClose}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {selectedProduct?.status === 'active' && (
+          <MenuItem onClick={() => openConfirmDialog('end', selectedProduct)}>
+            <Stop sx={{ mr: 1 }} fontSize="small" />
+            End Listing
+          </MenuItem>
+        )}
+        {(selectedProduct?.status === 'ended' || selectedProduct?.status === 'sold') && (
+          <MenuItem onClick={() => openConfirmDialog('relist', selectedProduct)}>
+            <Replay sx={{ mr: 1 }} fontSize="small" />
+            Relist Item
+          </MenuItem>
+        )}
+        <MenuItem
+          onClick={() => openConfirmDialog('delete', selectedProduct)}
+          sx={{ color: 'error.main' }}
+        >
+          <Delete sx={{ mr: 1 }} fontSize="small" />
+          Delete Listing
+        </MenuItem>
+      </Menu>
+
+      {/* Confirmation Dialog */}
+      <Dialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, type: '', product: null })}
+      >
+        <DialogTitle>
+          {confirmDialog.type === 'end' && 'End Listing Early?'}
+          {confirmDialog.type === 'relist' && 'Relist This Item?'}
+          {confirmDialog.type === 'delete' && 'Delete Listing?'}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {confirmDialog.type === 'end' &&
+              `Are you sure you want to end "${confirmDialog.product?.title}" early? This action cannot be undone.`}
+            {confirmDialog.type === 'relist' &&
+              `This will create a new listing based on "${confirmDialog.product?.title}". You can edit it before publishing.`}
+            {confirmDialog.type === 'delete' &&
+              `Are you sure you want to permanently delete "${confirmDialog.product?.title}"? This action cannot be undone.`}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDialog({ open: false, type: '', product: null })}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              if (confirmDialog.type === 'end') handleEndListing();
+              else if (confirmDialog.type === 'relist') handleRelistItem();
+              else if (confirmDialog.type === 'delete') handleDeleteListing();
+            }}
+            color={confirmDialog.type === 'delete' ? 'error' : 'primary'}
+            variant="contained"
+          >
+            {confirmDialog.type === 'end' && 'End Listing'}
+            {confirmDialog.type === 'relist' && 'Relist'}
+            {confirmDialog.type === 'delete' && 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for feedback */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

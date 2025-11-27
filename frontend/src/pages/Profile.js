@@ -27,6 +27,8 @@ import {
   Bookmark,
   PhotoCamera,
   Inventory,
+  LocationOn,
+  CreditCard,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -117,6 +119,8 @@ const Profile = () => {
     { label: 'My Orders', icon: <ShoppingBag />, path: '/orders' },
     { label: 'My Listings', icon: <Inventory />, path: '/my-listings' },
     { label: 'Seller Dashboard', icon: <Gavel />, path: '/seller/dashboard' },
+    { label: 'Addresses', icon: <LocationOn />, path: '/addresses' },
+    { label: 'Payment Methods', icon: <CreditCard />, path: '/payment-methods' },
     { label: 'Saved Searches', icon: <Bookmark />, path: '/saved-searches' },
     { label: 'Disputes', icon: <Gavel />, path: '/disputes' },
     { label: 'Returns', icon: <ShoppingBag />, path: '/returns' },
