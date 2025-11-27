@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Container,
   Box,
@@ -20,6 +20,7 @@ import { useAuth } from '../context/AuthContext';
 
 const Orders = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [orders, setOrders] = useState([]);
@@ -108,7 +109,11 @@ const Orders = () => {
       ) : (
         <>
           {orders.map((order) => (
-            <Paper key={order.id} sx={{ p: 3, mb: 2 }}>
+            <Paper
+              key={order.id}
+              onClick={() => navigate(`/orders/${order.id}`)}
+              sx={{ p: 3, mb: 2, cursor: 'pointer', '&:hover': { bgcolor: 'grey.50' } }}
+            >
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, flexWrap: 'wrap', gap: 1 }}>
                 <Box>
                   <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
@@ -168,7 +173,7 @@ const Orders = () => {
                 </Box>
               )}
 
-              <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
                 <Button
                   component={Link}
                   to={`/orders/${order.id}`}

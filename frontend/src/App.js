@@ -15,8 +15,19 @@ import Category from './pages/Category';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import Orders from './pages/Orders';
+import OrderDetail from './pages/OrderDetail';
 import Watchlist from './pages/Watchlist';
 import SellItem from './pages/SellItem';
+import SellerDashboard from './pages/SellerDashboard';
+import AdminPanel from './pages/AdminPanel';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import Disputes from './pages/Disputes';
+import Returns from './pages/Returns';
+import SecuritySettings from './pages/SecuritySettings';
+import SavedSearches from './pages/SavedSearches';
+import Profile from './pages/Profile';
+import MyListings from './pages/MyListings';
 
 // Material UI Theme
 const theme = createTheme({
@@ -90,6 +101,7 @@ function App() {
           <Router>
             <Layout>
               <Routes>
+                {/* Main routes */}
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
@@ -99,16 +111,54 @@ function App() {
                 <Route path="/cart" element={<Cart />} />
                 <Route path="/checkout" element={<Checkout />} />
                 <Route path="/orders" element={<Orders />} />
+                <Route path="/orders/:id" element={<OrderDetail />} />
                 <Route path="/watchlist" element={<Watchlist />} />
                 <Route path="/sell" element={<SellItem />} />
-                {/* Placeholder routes */}
+                <Route path="/sell/edit/:id" element={<SellItem />} />
+
+                {/* Auth routes */}
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+
+                {/* Seller routes */}
+                <Route path="/seller/dashboard" element={<SellerDashboard />} />
+                <Route path="/seller/orders" element={<SellerDashboard />} />
+                <Route path="/my-listings" element={<MyListings />} />
+
+                {/* Admin routes */}
+                <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/admin/*" element={<AdminPanel />} />
+
+                {/* User account routes */}
+                <Route path="/disputes" element={<Disputes />} />
+                <Route path="/disputes/:id" element={<Disputes />} />
+                <Route path="/returns" element={<Returns />} />
+                <Route path="/returns/:id" element={<Returns />} />
+                <Route path="/security" element={<SecuritySettings />} />
+                <Route path="/saved-searches" element={<SavedSearches />} />
+
+                {/* Static pages and redirects */}
                 <Route path="/deals" element={<Search />} />
                 <Route path="/categories" element={<Search />} />
                 <Route path="/notifications" element={<Orders />} />
-                <Route path="/profile" element={<Orders />} />
-                <Route path="/seller/dashboard" element={<Orders />} />
-                <Route path="/seller/listings" element={<Orders />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/resolution" element={<Disputes />} />
+
+                {/* Help and info pages - redirect to home for now */}
                 <Route path="/help" element={<Home />} />
+                <Route path="/help/*" element={<Home />} />
+                <Route path="/about" element={<Home />} />
+                <Route path="/contact" element={<Home />} />
+                <Route path="/policies" element={<Home />} />
+                <Route path="/careers" element={<Home />} />
+                <Route path="/government" element={<Home />} />
+                <Route path="/stores" element={<Search />} />
+                <Route path="/apps" element={<Home />} />
+                <Route path="/sitemap" element={<Home />} />
+                <Route path="/legal/*" element={<Home />} />
+
+                {/* Catch-all route */}
+                <Route path="*" element={<Home />} />
               </Routes>
             </Layout>
           </Router>

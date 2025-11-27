@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const { testConnection } = require('./config/database');
@@ -17,16 +19,40 @@ const reviewRoutes = require('./routes/reviews');
 const messageRoutes = require('./routes/messages');
 const notificationRoutes = require('./routes/notifications');
 const addressRoutes = require('./routes/addresses');
+const paymentRoutes = require('./routes/payment');
+const uploadRoutes = require('./routes/upload');
+const disputeRoutes = require('./routes/disputes');
+const returnRoutes = require('./routes/returns');
+const shippingRoutes = require('./routes/shipping');
+const savedSearchRoutes = require('./routes/savedSearches');
+const couponRoutes = require('./routes/coupons');
+const sellerRoutes = require('./routes/seller');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
+
+// Rate limiting - increased for development
+const limiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
+  message: { error: 'Too many requests, please try again later.' },
+});
 
 // Middleware
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
 }));
+
+// Stripe webhook needs raw body
+app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(limiter);
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -40,6 +66,15 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/addresses', addressRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/disputes', disputeRoutes);
+app.use('/api/returns', returnRoutes);
+app.use('/api/shipping', shippingRoutes);
+app.use('/api/saved-searches', savedSearchRoutes);
+app.use('/api/coupons', couponRoutes);
+app.use('/api/seller', sellerRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

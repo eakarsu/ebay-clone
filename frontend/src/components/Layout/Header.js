@@ -234,7 +234,7 @@ const Header = () => {
                           <ListItemIcon><DashboardIcon /></ListItemIcon>
                           <ListItemText>Seller Dashboard</ListItemText>
                         </MenuItem>
-                        <MenuItem component={Link} to="/seller/listings" onClick={handleCloseMenu}>
+                        <MenuItem component={Link} to="/my-listings" onClick={handleCloseMenu}>
                           <ListItemIcon><InventoryIcon /></ListItemIcon>
                           <ListItemText>My Listings</ListItemText>
                         </MenuItem>
