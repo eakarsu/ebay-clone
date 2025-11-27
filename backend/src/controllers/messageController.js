@@ -161,4 +161,149 @@ const getUnreadCount = async (req, res, next) => {
   }
 };
 
-module.exports = { getConversations, getMessages, sendMessage, getUnreadCount };
+// Get messages for a specific conversation (by conversation/other user ID)
+const getConversationMessages = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+
+    // First, find the other user from the conversation
+    // The conversationId from frontend is the message ID of the last message
+    // We need to get the other_user_id from that conversation
+    const convResult = await pool.query(
+      `SELECT CASE
+                WHEN sender_id = $1 THEN recipient_id
+                ELSE sender_id
+              END as other_user_id
+       FROM messages
+       WHERE id = $2 AND (sender_id = $1 OR recipient_id = $1)`,
+      [req.user.id, conversationId]
+    );
+
+    if (convResult.rows.length === 0) {
+      // If not found by message ID, try treating conversationId as other_user_id directly
+      const result = await pool.query(
+        `SELECT m.id, m.sender_id, m.body as content, m.created_at,
+                m.sender_id = $1 as is_own
+         FROM messages m
+         WHERE (m.sender_id = $1 AND m.recipient_id = $2) OR (m.sender_id = $2 AND m.recipient_id = $1)
+         ORDER BY m.created_at ASC`,
+        [req.user.id, conversationId]
+      );
+
+      // Mark messages as read
+      await pool.query(
+        `UPDATE messages SET is_read = true
+         WHERE recipient_id = $1 AND sender_id = $2 AND is_read = false`,
+        [req.user.id, conversationId]
+      );
+
+      return res.json({
+        messages: result.rows.map(m => ({
+          id: m.id,
+          senderId: m.sender_id,
+          content: m.content,
+          createdAt: m.created_at,
+          isOwn: m.is_own,
+        })),
+      });
+    }
+
+    const otherUserId = convResult.rows[0].other_user_id;
+
+    const result = await pool.query(
+      `SELECT m.id, m.sender_id, m.body as content, m.created_at,
+              m.sender_id = $1 as is_own
+       FROM messages m
+       WHERE (m.sender_id = $1 AND m.recipient_id = $2) OR (m.sender_id = $2 AND m.recipient_id = $1)
+       ORDER BY m.created_at ASC`,
+      [req.user.id, otherUserId]
+    );
+
+    // Mark messages as read
+    await pool.query(
+      `UPDATE messages SET is_read = true
+       WHERE recipient_id = $1 AND sender_id = $2 AND is_read = false`,
+      [req.user.id, otherUserId]
+    );
+
+    res.json({
+      messages: result.rows.map(m => ({
+        id: m.id,
+        senderId: m.sender_id,
+        content: m.content,
+        createdAt: m.created_at,
+        isOwn: m.is_own,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Reply to a conversation
+const replyToConversation = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+
+    // Find the other user from the conversation
+    const convResult = await pool.query(
+      `SELECT CASE
+                WHEN sender_id = $1 THEN recipient_id
+                ELSE sender_id
+              END as other_user_id,
+              product_id
+       FROM messages
+       WHERE id = $2 AND (sender_id = $1 OR recipient_id = $1)`,
+      [req.user.id, conversationId]
+    );
+
+    let recipientId, productId;
+
+    if (convResult.rows.length === 0) {
+      // If not found by message ID, treat conversationId as other_user_id
+      recipientId = conversationId;
+      productId = null;
+    } else {
+      recipientId = convResult.rows[0].other_user_id;
+      productId = convResult.rows[0].product_id;
+    }
+
+    // Insert the new message
+    const result = await pool.query(
+      `INSERT INTO messages (sender_id, recipient_id, product_id, body)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [req.user.id, recipientId, productId, content]
+    );
+
+    // Create notification for recipient
+    try {
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, title, message, link)
+         VALUES ($1, 'message', 'New Message', $2, $3)`,
+        [recipientId, `You have a new message`, `/messages`]
+      );
+    } catch (e) {
+      // Ignore notification errors
+    }
+
+    res.status(201).json({
+      message: 'Message sent',
+      data: {
+        id: result.rows[0].id,
+        content: result.rows[0].body,
+        createdAt: result.rows[0].created_at,
+        isOwn: true,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getConversations, getMessages, sendMessage, getUnreadCount, getConversationMessages, replyToConversation };
