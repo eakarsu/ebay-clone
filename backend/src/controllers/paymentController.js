@@ -212,29 +212,30 @@ const processRefund = async (req, res, next) => {
 // Get payment methods for user
 const getPaymentMethods = async (req, res, next) => {
   try {
-    const userResult = await pool.query(
-      'SELECT stripe_customer_id FROM users WHERE id = $1',
+    // First, get saved payment methods from database
+    const dbResult = await pool.query(
+      `SELECT id, payment_type, is_default, card_last_four, card_brand,
+              card_exp_month, card_exp_year, paypal_email, bank_name, bank_account_last_four
+       FROM payment_methods
+       WHERE user_id = $1
+       ORDER BY is_default DESC, created_at DESC`,
       [req.user.id]
     );
 
-    if (!userResult.rows[0]?.stripe_customer_id) {
-      return res.json({ paymentMethods: [] });
-    }
+    const paymentMethods = dbResult.rows.map((pm) => ({
+      id: pm.id,
+      paymentType: pm.payment_type,
+      isDefault: pm.is_default,
+      cardLastFour: pm.card_last_four,
+      cardBrand: pm.card_brand,
+      cardExpMonth: pm.card_exp_month,
+      cardExpYear: pm.card_exp_year,
+      paypalEmail: pm.paypal_email,
+      bankName: pm.bank_name,
+      bankAccountLastFour: pm.bank_account_last_four,
+    }));
 
-    const paymentMethods = await stripe.paymentMethods.list({
-      customer: userResult.rows[0].stripe_customer_id,
-      type: 'card',
-    });
-
-    res.json({
-      paymentMethods: paymentMethods.data.map((pm) => ({
-        id: pm.id,
-        brand: pm.card.brand,
-        last4: pm.card.last4,
-        expMonth: pm.card.exp_month,
-        expYear: pm.card.exp_year,
-      })),
-    });
+    res.json({ paymentMethods });
   } catch (error) {
     next(error);
   }

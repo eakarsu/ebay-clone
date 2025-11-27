@@ -235,6 +235,27 @@ const getProductById = async (req, res, next) => {
       isWatching = watchResult.rows.length > 0;
     }
 
+    // Get specifications
+    const specsResult = await pool.query(
+      `SELECT spec_group, spec_name, spec_value, display_order
+       FROM product_specifications
+       WHERE product_id = $1
+       ORDER BY display_order`,
+      [id]
+    );
+
+    // Group specifications by spec_group
+    const specifications = {};
+    specsResult.rows.forEach(spec => {
+      if (!specifications[spec.spec_group]) {
+        specifications[spec.spec_group] = [];
+      }
+      specifications[spec.spec_group].push({
+        name: spec.spec_name,
+        value: spec.spec_value,
+      });
+    });
+
     res.json({
       id: product.id,
       title: product.title,
@@ -271,6 +292,7 @@ const getProductById = async (req, res, next) => {
       viewCount: product.view_count,
       watchCount: product.watch_count,
       featured: product.featured,
+      acceptsOffers: product.accepts_offers,
       status: product.status,
       createdAt: product.created_at,
       category: { id: product.category_id, name: product.category_name, slug: product.category_slug },
@@ -299,6 +321,7 @@ const getProductById = async (req, res, next) => {
         time: bid.created_at,
       })),
       isWatching,
+      specifications,
     });
   } catch (error) {
     next(error);

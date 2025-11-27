@@ -39,6 +39,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { getImageUrl } from '../../services/api';
 
 const Header = () => {
   const theme = useTheme();
@@ -203,7 +204,7 @@ const Header = () => {
                   </IconButton>
                   <IconButton onClick={handleUserMenu}>
                     <Avatar
-                      src={user.avatarUrl}
+                      src={getImageUrl(user.avatarUrl)}
                       sx={{ width: 32, height: 32 }}
                     >
                       {user.username?.[0]?.toUpperCase()}
@@ -226,6 +227,10 @@ const Header = () => {
                     <MenuItem component={Link} to="/watchlist" onClick={handleCloseMenu}>
                       <ListItemIcon><WatchlistIcon /></ListItemIcon>
                       <ListItemText>Watchlist</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/my-offers" onClick={handleCloseMenu}>
+                      <ListItemIcon><DealsIcon /></ListItemIcon>
+                      <ListItemText>My Offers</ListItemText>
                     </MenuItem>
                     {user.isSeller && (
                       <>

@@ -26,6 +26,7 @@ import {
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { addressService, orderService } from '../services/api';
+import api from '../services/api';
 
 const steps = ['Shipping', 'Payment', 'Review'];
 
@@ -47,6 +48,8 @@ const Checkout = () => {
   });
   const [useNewAddress, setUseNewAddress] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('card');
+  const [savedPaymentMethods, setSavedPaymentMethods] = useState([]);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [orderComplete, setOrderComplete] = useState(false);
@@ -69,6 +72,18 @@ const Checkout = () => {
       if (defaultAddr) {
         setSelectedAddress(defaultAddr.id);
       }
+    });
+
+    // Fetch saved payment methods
+    api.get('/payment/methods').then((res) => {
+      setSavedPaymentMethods(res.data.paymentMethods || []);
+      const defaultPM = (res.data.paymentMethods || []).find((pm) => pm.isDefault);
+      if (defaultPM) {
+        setSelectedPaymentMethod(defaultPM.id);
+        setPaymentMethod(defaultPM.paymentType === 'paypal' ? 'paypal' : 'card');
+      }
+    }).catch(() => {
+      // No saved payment methods
     });
   }, [user, cart.items.length, navigate, orderComplete]);
 
@@ -259,63 +274,178 @@ const Checkout = () => {
     </Box>
   );
 
-  const renderPayment = () => (
-    <Box>
-      <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Payment /> Payment Method
-      </Typography>
+  const renderPayment = () => {
+    const cardMethods = savedPaymentMethods.filter(pm => pm.paymentType === 'credit_card' || pm.paymentType === 'debit_card');
+    const paypalMethods = savedPaymentMethods.filter(pm => pm.paymentType === 'paypal');
 
-      <RadioGroup value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-        <Paper sx={{ p: 2, mb: 2, border: paymentMethod === 'card' ? '2px solid' : '1px solid', borderColor: paymentMethod === 'card' ? 'primary.main' : 'grey.300' }}>
-          <FormControlLabel
-            value="card"
-            control={<Radio />}
-            label={
-              <Box>
-                <Typography variant="subtitle2">Credit or Debit Card</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Visa, Mastercard, American Express
-                </Typography>
-              </Box>
-            }
-          />
-        </Paper>
-        <Paper sx={{ p: 2, mb: 2, border: paymentMethod === 'paypal' ? '2px solid' : '1px solid', borderColor: paymentMethod === 'paypal' ? 'primary.main' : 'grey.300' }}>
-          <FormControlLabel
-            value="paypal"
-            control={<Radio />}
-            label={
-              <Box>
-                <Typography variant="subtitle2">PayPal</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Pay with your PayPal account
-                </Typography>
-              </Box>
-            }
-          />
-        </Paper>
-      </RadioGroup>
+    return (
+      <Box>
+        <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Payment /> Payment Method
+        </Typography>
 
-      {paymentMethod === 'card' && (
-        <Box sx={{ mt: 3 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Demo mode: No actual payment will be processed
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <TextField fullWidth label="Card Number" defaultValue="4242 4242 4242 4242" />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField fullWidth label="Expiry" defaultValue="12/25" />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField fullWidth label="CVC" defaultValue="123" />
-            </Grid>
-          </Grid>
-        </Box>
-      )}
-    </Box>
-  );
+        {/* Saved Cards */}
+        {cardMethods.length > 0 && (
+          <>
+            <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
+              Saved Cards
+            </Typography>
+            <RadioGroup
+              value={selectedPaymentMethod}
+              onChange={(e) => {
+                setSelectedPaymentMethod(e.target.value);
+                setPaymentMethod('card');
+              }}
+            >
+              {cardMethods.map((pm) => (
+                <Paper
+                  key={pm.id}
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    border: selectedPaymentMethod === pm.id ? '2px solid' : '1px solid',
+                    borderColor: selectedPaymentMethod === pm.id ? 'primary.main' : 'grey.300',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => {
+                    setSelectedPaymentMethod(pm.id);
+                    setPaymentMethod('card');
+                  }}
+                >
+                  <FormControlLabel
+                    value={pm.id}
+                    control={<Radio />}
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Box>
+                          <Typography variant="subtitle2">
+                            {pm.cardBrand} •••• {pm.cardLastFour}
+                            {pm.isDefault && (
+                              <Typography component="span" sx={{ ml: 1, color: 'primary.main', fontSize: '0.75rem' }}>
+                                (Default)
+                              </Typography>
+                            )}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Expires {pm.cardExpMonth}/{pm.cardExpYear}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    }
+                  />
+                </Paper>
+              ))}
+            </RadioGroup>
+          </>
+        )}
+
+        {/* PayPal */}
+        {paypalMethods.length > 0 && (
+          <>
+            <Typography variant="subtitle2" sx={{ mb: 2, mt: 3, color: 'text.secondary' }}>
+              PayPal
+            </Typography>
+            <RadioGroup
+              value={selectedPaymentMethod}
+              onChange={(e) => {
+                setSelectedPaymentMethod(e.target.value);
+                setPaymentMethod('paypal');
+              }}
+            >
+              {paypalMethods.map((pm) => (
+                <Paper
+                  key={pm.id}
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    border: selectedPaymentMethod === pm.id ? '2px solid' : '1px solid',
+                    borderColor: selectedPaymentMethod === pm.id ? 'primary.main' : 'grey.300',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => {
+                    setSelectedPaymentMethod(pm.id);
+                    setPaymentMethod('paypal');
+                  }}
+                >
+                  <FormControlLabel
+                    value={pm.id}
+                    control={<Radio />}
+                    label={
+                      <Box>
+                        <Typography variant="subtitle2">PayPal</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {pm.paypalEmail}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Paper>
+              ))}
+            </RadioGroup>
+          </>
+        )}
+
+        {/* No saved payment methods */}
+        {savedPaymentMethods.length === 0 && (
+          <Box>
+            <RadioGroup value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+              <Paper sx={{ p: 2, mb: 2, border: paymentMethod === 'card' ? '2px solid' : '1px solid', borderColor: paymentMethod === 'card' ? 'primary.main' : 'grey.300' }}>
+                <FormControlLabel
+                  value="card"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="subtitle2">Credit or Debit Card</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Visa, Mastercard, American Express
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Paper>
+              <Paper sx={{ p: 2, mb: 2, border: paymentMethod === 'paypal' ? '2px solid' : '1px solid', borderColor: paymentMethod === 'paypal' ? 'primary.main' : 'grey.300' }}>
+                <FormControlLabel
+                  value="paypal"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="subtitle2">PayPal</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Pay with your PayPal account
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Paper>
+            </RadioGroup>
+
+            {paymentMethod === 'card' && (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Demo mode: No actual payment will be processed
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField fullWidth label="Card Number" defaultValue="4242 4242 4242 4242" />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField fullWidth label="Expiry" defaultValue="12/25" />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField fullWidth label="CVC" defaultValue="123" />
+                  </Grid>
+                </Grid>
+              </Box>
+            )}
+          </Box>
+        )}
+
+        <Alert severity="info" sx={{ mt: 3 }}>
+          Demo mode: No actual payment will be processed
+        </Alert>
+      </Box>
+    );
+  };
 
   const renderReview = () => {
     const selectedAddr = addresses.find((a) => a.id === selectedAddress);
@@ -344,7 +474,16 @@ const Checkout = () => {
             Payment Method
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {paymentMethod === 'card' ? 'Credit Card ending in 4242' : 'PayPal'}
+            {(() => {
+              const selectedPM = savedPaymentMethods.find(pm => pm.id === selectedPaymentMethod);
+              if (selectedPM) {
+                if (selectedPM.paymentType === 'paypal') {
+                  return `PayPal (${selectedPM.paypalEmail})`;
+                }
+                return `${selectedPM.cardBrand} •••• ${selectedPM.cardLastFour}`;
+              }
+              return paymentMethod === 'card' ? 'Credit Card ending in 4242' : 'PayPal';
+            })()}
           </Typography>
         </Paper>
 

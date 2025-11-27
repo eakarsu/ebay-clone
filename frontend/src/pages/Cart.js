@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -11,6 +11,7 @@ import {
   TextField,
   Divider,
   Avatar,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add,
@@ -24,7 +25,13 @@ import { useAuth } from '../context/AuthContext';
 const Cart = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { cart, updateQuantity, removeFromCart, loading } = useCart();
+  const { cart, updateQuantity, removeFromCart, loading, refreshCart } = useCart();
+
+  useEffect(() => {
+    if (user) {
+      refreshCart();
+    }
+  }, [user, refreshCart]);
 
   if (!user) {
     return (
@@ -41,6 +48,17 @@ const Cart = () => {
         >
           Sign in
         </Button>
+      </Container>
+    );
+  }
+
+  if (loading) {
+    return (
+      <Container maxWidth="md" sx={{ py: 8, textAlign: 'center' }}>
+        <CircularProgress size={60} sx={{ mb: 2 }} />
+        <Typography variant="h6" color="text.secondary">
+          Loading your cart...
+        </Typography>
       </Container>
     );
   }

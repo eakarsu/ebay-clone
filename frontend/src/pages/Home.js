@@ -20,6 +20,7 @@ import {
 } from '@mui/icons-material';
 import { productService, categoryService } from '../services/api';
 import ProductGrid from '../components/Products/ProductGrid';
+import RecentlyViewed from '../components/Features/RecentlyViewed';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -215,6 +216,9 @@ const Home = () => {
           </Box>
           <ProductGrid products={recentProducts} loading={loading} />
         </Box>
+
+        {/* Recently Viewed */}
+        <RecentlyViewed />
 
         {/* Selling CTA */}
         <Paper

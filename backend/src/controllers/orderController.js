@@ -187,7 +187,7 @@ const getOrders = async (req, res, next) => {
     params.push(limit, offset);
 
     const result = await pool.query(
-      `SELECT o.*, u.username as other_party_username
+      `SELECT o.*, u.username as other_party_username, u.id as other_party_id
        FROM orders o
        JOIN users u ON u.id = ${type === 'sales' ? 'o.buyer_id' : 'o.seller_id'}
        WHERE ${whereClause}
@@ -222,6 +222,7 @@ const getOrders = async (req, res, next) => {
           deliveredAt: order.delivered_at,
           createdAt: order.created_at,
           otherParty: order.other_party_username,
+          otherPartyId: order.other_party_id,
           items: itemsResult.rows.map(item => ({
             id: item.id,
             productId: item.product_id,

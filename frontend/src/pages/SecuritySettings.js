@@ -57,7 +57,8 @@ const SecuritySettings = () => {
   const checkTwoFactorStatus = async () => {
     try {
       const response = await api.get('/auth/me');
-      setTwoFactorEnabled(response.data.user.twoFactorEnabled || false);
+      // Backend returns data directly, not wrapped in user object
+      setTwoFactorEnabled(response.data?.twoFactorEnabled || false);
     } catch (err) {
       console.error('Failed to check 2FA status:', err);
     }
@@ -111,7 +112,7 @@ const SecuritySettings = () => {
     setLoading(true);
     try {
       const response = await api.post('/auth/2fa/verify', {
-        token: verificationCode,
+        code: verificationCode,
       });
       setBackupCodes(response.data.backupCodes);
       setTwoFactorEnabled(true);

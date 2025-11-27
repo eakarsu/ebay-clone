@@ -29,6 +29,40 @@ import SavedSearches from './pages/SavedSearches';
 import Profile from './pages/Profile';
 import MyListings from './pages/MyListings';
 
+// New Feature Pages
+import Collections from './pages/Collections';
+import SellerStore from './pages/SellerStore';
+import Rewards from './pages/Rewards';
+import PaymentPlans from './pages/PaymentPlans';
+import PriceAlerts from './pages/PriceAlerts';
+import MyOffers from './pages/MyOffers';
+import BulkUpload from './pages/BulkUpload';
+import ScheduledListings from './pages/ScheduledListings';
+import Invoices from './pages/Invoices';
+import BidRetractions from './pages/BidRetractions';
+
+// Footer/Info Pages
+import Help from './pages/Help';
+import Stores from './pages/Stores';
+import About from './pages/About';
+import Careers from './pages/Careers';
+import Policies from './pages/Policies';
+import Contact from './pages/Contact';
+import SiteMap from './pages/SiteMap';
+import Apps from './pages/Apps';
+import Legal from './pages/Legal';
+import Government from './pages/Government';
+
+// Advanced Feature Pages
+import PromotedListings from './pages/PromotedListings';
+import SecondChanceOffer from './pages/SecondChanceOffer';
+import AuthenticityGuarantee from './pages/AuthenticityGuarantee';
+import Motors from './pages/Motors';
+import CharityListings from './pages/CharityListings';
+import ImportDuties from './pages/ImportDuties';
+import SellingLimits from './pages/SellingLimits';
+import VolumePricing from './pages/VolumePricing';
+
 // Material UI Theme
 const theme = createTheme({
   palette: {
@@ -137,6 +171,19 @@ function App() {
                 <Route path="/security" element={<SecuritySettings />} />
                 <Route path="/saved-searches" element={<SavedSearches />} />
 
+                {/* New Feature routes */}
+                <Route path="/collections" element={<Collections />} />
+                <Route path="/collections/:id" element={<Collections />} />
+                <Route path="/store/:username" element={<SellerStore />} />
+                <Route path="/rewards" element={<Rewards />} />
+                <Route path="/payment-plans" element={<PaymentPlans />} />
+                <Route path="/price-alerts" element={<PriceAlerts />} />
+                <Route path="/my-offers" element={<MyOffers />} />
+                <Route path="/bulk-upload" element={<BulkUpload />} />
+                <Route path="/scheduled-listings" element={<ScheduledListings />} />
+                <Route path="/invoices" element={<Invoices />} />
+                <Route path="/bid-retractions" element={<BidRetractions />} />
+
                 {/* Static pages and redirects */}
                 <Route path="/deals" element={<Search />} />
                 <Route path="/categories" element={<Search />} />
@@ -144,18 +191,28 @@ function App() {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/resolution" element={<Disputes />} />
 
-                {/* Help and info pages - redirect to home for now */}
-                <Route path="/help" element={<Home />} />
-                <Route path="/help/*" element={<Home />} />
-                <Route path="/about" element={<Home />} />
-                <Route path="/contact" element={<Home />} />
-                <Route path="/policies" element={<Home />} />
-                <Route path="/careers" element={<Home />} />
-                <Route path="/government" element={<Home />} />
-                <Route path="/stores" element={<Search />} />
-                <Route path="/apps" element={<Home />} />
-                <Route path="/sitemap" element={<Home />} />
-                <Route path="/legal/*" element={<Home />} />
+                {/* Help and info pages */}
+                <Route path="/help" element={<Help />} />
+                <Route path="/help/:topic" element={<Help />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/policies" element={<Policies />} />
+                <Route path="/careers" element={<Careers />} />
+                <Route path="/government" element={<Government />} />
+                <Route path="/stores" element={<Stores />} />
+                <Route path="/apps" element={<Apps />} />
+                <Route path="/sitemap" element={<SiteMap />} />
+                <Route path="/legal/:page" element={<Legal />} />
+
+                {/* Advanced feature routes */}
+                <Route path="/promoted-listings" element={<PromotedListings />} />
+                <Route path="/second-chance-offers" element={<SecondChanceOffer />} />
+                <Route path="/authenticity-guarantee" element={<AuthenticityGuarantee />} />
+                <Route path="/motors" element={<Motors />} />
+                <Route path="/charity" element={<CharityListings />} />
+                <Route path="/import-duties" element={<ImportDuties />} />
+                <Route path="/selling-limits" element={<SellingLimits />} />
+                <Route path="/volume-pricing" element={<VolumePricing />} />
 
                 {/* Catch-all route */}
                 <Route path="*" element={<Home />} />

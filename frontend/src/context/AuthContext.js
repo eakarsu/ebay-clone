@@ -25,8 +25,18 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = async (email, password) => {
-    const response = await authService.login({ email, password });
+  const login = async (email, password, twoFactorCode = null) => {
+    const payload = { email, password };
+    if (twoFactorCode) {
+      payload.twoFactorCode = twoFactorCode;
+    }
+    const response = await authService.login(payload);
+
+    // Check if 2FA is required
+    if (response.data.requiresTwoFactor) {
+      return { requiresTwoFactor: true };
+    }
+
     const { user, token } = response.data;
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));

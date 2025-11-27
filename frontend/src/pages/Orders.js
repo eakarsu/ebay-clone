@@ -13,9 +13,17 @@ import {
   Button,
   CircularProgress,
   Pagination,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Rating,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import { format } from 'date-fns';
-import { orderService } from '../services/api';
+import { orderService, reviewService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const Orders = () => {
@@ -27,6 +35,13 @@ const Orders = () => {
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 1 });
   const [tab, setTab] = useState(searchParams.get('type') === 'sales' ? 1 : 0);
+
+  // Review dialog state
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [reviewData, setReviewData] = useState({ rating: 5, comment: '' });
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -65,6 +80,48 @@ const Orders = () => {
       returned: 'error',
     };
     return colors[status] || 'default';
+  };
+
+  const handleOpenReviewDialog = (order) => {
+    setSelectedOrder(order);
+    setReviewData({ rating: 5, comment: '' });
+    setReviewDialogOpen(true);
+  };
+
+  const handleCloseReviewDialog = () => {
+    setReviewDialogOpen(false);
+    setSelectedOrder(null);
+    setReviewData({ rating: 5, comment: '' });
+  };
+
+  const handleSubmitReview = async () => {
+    if (!selectedOrder) return;
+
+    setSubmittingReview(true);
+    try {
+      await reviewService.create({
+        orderId: selectedOrder.id,
+        reviewedUserId: selectedOrder.otherPartyId,
+        reviewType: tab === 0 ? 'seller' : 'buyer',
+        rating: reviewData.rating,
+        comment: reviewData.comment,
+      });
+
+      setSnackbar({
+        open: true,
+        message: 'Feedback submitted successfully!',
+        severity: 'success',
+      });
+      handleCloseReviewDialog();
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to submit feedback',
+        severity: 'error',
+      });
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   if (!user) {
@@ -183,11 +240,14 @@ const Orders = () => {
                 >
                   View Details
                 </Button>
-                {order.status === 'delivered' && tab === 0 && (
-                  <Button size="small" variant="outlined" sx={{ borderRadius: 5 }}>
-                    Leave Review
+                <Button
+                    size="small"
+                    variant="outlined"
+                    sx={{ borderRadius: 5 }}
+                    onClick={() => handleOpenReviewDialog(order)}
+                  >
+                    Leave Feedback
                   </Button>
-                )}
               </Box>
             </Paper>
           ))}
@@ -204,6 +264,73 @@ const Orders = () => {
           )}
         </>
       )}
+
+      {/* Feedback Dialog */}
+      <Dialog open={reviewDialogOpen} onClose={handleCloseReviewDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Leave Feedback for {selectedOrder?.otherParty}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ py: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              How would you rate your experience with this {tab === 0 ? 'seller' : 'buyer'}?
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+              <Rating
+                value={reviewData.rating}
+                onChange={(e, newValue) => setReviewData({ ...reviewData, rating: newValue })}
+                size="large"
+              />
+              <Typography variant="body2" color="text.secondary">
+                {reviewData.rating === 5 && 'Excellent!'}
+                {reviewData.rating === 4 && 'Good'}
+                {reviewData.rating === 3 && 'Average'}
+                {reviewData.rating === 2 && 'Below Average'}
+                {reviewData.rating === 1 && 'Poor'}
+              </Typography>
+            </Box>
+
+            <TextField
+              fullWidth
+              multiline
+              rows={4}
+              label="Your feedback (optional)"
+              placeholder={`Share your experience with this ${tab === 0 ? 'seller' : 'buyer'}...`}
+              value={reviewData.comment}
+              onChange={(e) => setReviewData({ ...reviewData, comment: e.target.value })}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={handleCloseReviewDialog} disabled={submittingReview}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmitReview}
+            disabled={submittingReview || !reviewData.rating}
+            sx={{ borderRadius: 5, bgcolor: '#3665f3' }}
+          >
+            {submittingReview ? 'Submitting...' : 'Submit Feedback'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for feedback messages */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

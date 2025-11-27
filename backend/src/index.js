@@ -29,6 +29,31 @@ const couponRoutes = require('./routes/coupons');
 const sellerRoutes = require('./routes/seller');
 const adminRoutes = require('./routes/admin');
 
+// New feature routes
+const offerRoutes = require('./routes/offers');
+const questionRoutes = require('./routes/questions');
+const recentlyViewedRoutes = require('./routes/recentlyViewed');
+const recommendationRoutes = require('./routes/recommendations');
+const priceAlertRoutes = require('./routes/priceAlerts');
+const collectionRoutes = require('./routes/collections');
+const storeRoutes = require('./routes/stores');
+const invoiceRoutes = require('./routes/invoices');
+const rewardsRoutes = require('./routes/rewards');
+const paymentPlanRoutes = require('./routes/paymentPlans');
+const supportRoutes = require('./routes/support');
+const currencyRoutes = require('./routes/currencies');
+const bidRetractionRoutes = require('./routes/bidRetractions');
+
+// Advanced feature routes (new implementations)
+const gspRoutes = require('./routes/gspRoutes');
+const motorsRoutes = require('./routes/motorsRoutes');
+const authenticityRoutes = require('./routes/authenticityRoutes');
+const sellerPerformanceRoutes = require('./routes/sellerPerformanceRoutes');
+const proxyBidRoutes = require('./routes/proxyBidRoutes');
+const membershipRoutes = require('./routes/membershipRoutes');
+const localPickupRoutes = require('./routes/localPickupRoutes');
+const bestMatchRoutes = require('./routes/bestMatchRoutes');
+
 const app = express();
 
 // Rate limiting - increased for development
@@ -75,6 +100,31 @@ app.use('/api/saved-searches', savedSearchRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/seller', sellerRoutes);
 app.use('/api/admin', adminRoutes);
+
+// New feature routes
+app.use('/api/offers', offerRoutes);
+app.use('/api/questions', questionRoutes);
+app.use('/api/recently-viewed', recentlyViewedRoutes);
+app.use('/api/recommendations', recommendationRoutes);
+app.use('/api/price-alerts', priceAlertRoutes);
+app.use('/api/collections', collectionRoutes);
+app.use('/api/stores', storeRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/rewards', rewardsRoutes);
+app.use('/api/payment-plans', paymentPlanRoutes);
+app.use('/api/support', supportRoutes);
+app.use('/api/currencies', currencyRoutes);
+app.use('/api/bid-retractions', bidRetractionRoutes);
+
+// Advanced feature routes (new implementations)
+app.use('/api/gsp', gspRoutes);
+app.use('/api/motors', motorsRoutes);
+app.use('/api/authenticity', authenticityRoutes);
+app.use('/api/seller-performance', sellerPerformanceRoutes);
+app.use('/api/proxy-bids', proxyBidRoutes);
+app.use('/api/membership', membershipRoutes);
+app.use('/api/local-pickup', localPickupRoutes);
+app.use('/api/best-match', bestMatchRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

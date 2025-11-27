@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { cartService } from '../services/api';
 import { useAuth } from './AuthContext';
 
@@ -17,7 +17,7 @@ export const CartProvider = ({ children }) => {
   const [cart, setCart] = useState({ items: [], summary: { total: 0, itemCount: 0 } });
   const [loading, setLoading] = useState(false);
 
-  const fetchCart = async () => {
+  const fetchCart = useCallback(async () => {
     if (!user) {
       setCart({ items: [], summary: { total: 0, itemCount: 0 } });
       return;
@@ -26,17 +26,20 @@ export const CartProvider = ({ children }) => {
     try {
       setLoading(true);
       const response = await cartService.get();
-      setCart(response.data);
+      if (response.data && response.data.items) {
+        setCart(response.data);
+      }
     } catch (error) {
       console.error('Error fetching cart:', error);
+      setCart({ items: [], summary: { total: 0, itemCount: 0 } });
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchCart();
-  }, [user]);
+  }, [fetchCart]);
 
   const addToCart = async (productId, quantity = 1) => {
     try {

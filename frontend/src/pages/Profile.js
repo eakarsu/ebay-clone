@@ -30,11 +30,11 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../services/api';
+import api, { getImageUrl } from '../services/api';
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { user, setUser } = useAuth();
+  const { user, updateUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -71,7 +71,7 @@ const Profile = () => {
         lastName: profile.lastName,
         phone: profile.phone,
       });
-      setUser(response.data.user);
+      updateUser(response.data.user);
       setSuccess('Profile updated successfully');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update profile');
@@ -84,17 +84,32 @@ const Profile = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File too large. Maximum size is 5MB.');
+      return;
+    }
+
     const formData = new FormData();
     formData.append('avatar', file);
 
     try {
+      setError('');
       const response = await api.post('/upload/avatar', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setUser({ ...user, avatarUrl: response.data.avatarUrl });
+      updateUser({ ...user, avatarUrl: response.data.avatarUrl });
       setSuccess('Avatar updated successfully');
     } catch (err) {
-      setError('Failed to upload avatar');
+      console.error('Avatar upload error:', err);
+      setError(err.response?.data?.error || 'Failed to upload avatar. Please try again.');
     }
   };
 
@@ -129,7 +144,7 @@ const Profile = () => {
             <Box sx={{ textAlign: 'center', mb: 3 }}>
               <Box sx={{ position: 'relative', display: 'inline-block' }}>
                 <Avatar
-                  src={user?.avatarUrl}
+                  src={getImageUrl(user?.avatarUrl)}
                   sx={{ width: 100, height: 100, mx: 'auto', mb: 2 }}
                 >
                   {user?.username?.[0]?.toUpperCase()}

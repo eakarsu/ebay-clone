@@ -4,6 +4,11 @@ const crypto = require('crypto');
 const { authenticator } = require('otplib');
 const QRCode = require('qrcode');
 const { pool } = require('../config/database');
+
+// Configure authenticator with a larger time window to handle clock drift
+authenticator.options = {
+  window: 2, // Allow codes from 1 step before and after (±30 seconds)
+};
 const emailService = require('../services/emailService');
 
 const generateToken = (userId) => {
@@ -445,7 +450,7 @@ const verify2FA = async (req, res, next) => {
     const { code } = req.body;
 
     const result = await pool.query(
-      'SELECT secret FROM two_factor_auth WHERE user_id = $1',
+      'SELECT secret, backup_codes FROM two_factor_auth WHERE user_id = $1',
       [req.user.id]
     );
 
@@ -453,9 +458,17 @@ const verify2FA = async (req, res, next) => {
       return res.status(400).json({ error: 'Please set up 2FA first' });
     }
 
+    const secret = result.rows[0].secret;
+
+    // In development mode, log the expected code for testing
+    if (process.env.NODE_ENV !== 'production') {
+      const expectedCode = authenticator.generate(secret);
+      console.log(`[DEV] 2FA Expected code: ${expectedCode} (valid for ~30 seconds)`);
+    }
+
     const isValid = authenticator.verify({
       token: code,
-      secret: result.rows[0].secret,
+      secret: secret,
     });
 
     if (!isValid) {
@@ -473,7 +486,11 @@ const verify2FA = async (req, res, next) => {
       [req.user.id]
     );
 
-    res.json({ message: '2FA enabled successfully' });
+    // Return backup codes
+    res.json({
+      message: '2FA enabled successfully',
+      backupCodes: result.rows[0].backup_codes || []
+    });
   } catch (error) {
     next(error);
   }
