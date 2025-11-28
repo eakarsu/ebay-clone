@@ -1,0 +1,17 @@
+{
+  "testUser": {
+    "username": "cypresstest",
+    "email": "cypresstest@example.com",
+    "password": "TestPassword123!"
+  },
+  "existingUser": {
+    "username": "testuser",
+    "email": "testuser@example.com",
+    "password": "password123"
+  },
+  "sellerUser": {
+    "username": "techdeals",
+    "email": "techdeals@example.com",
+    "password": "password123"
+  }
+}
