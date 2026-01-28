@@ -26,7 +26,10 @@
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
     "e2e": "cypress run --browser chrome",
-    "e2e:headless": "cypress run"
+    "e2e:headless": "cypress run",
+    "playwright:test": "playwright test",
+    "playwright:test:ui": "playwright test --ui",
+    "playwright:test:headed": "playwright test --headed"
   },
   "eslintConfig": {
     "extends": [
@@ -47,6 +50,7 @@
   },
   "proxy": "http://localhost:4000",
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "cypress": "^15.7.0",
     "otplib": "^12.0.1"
   }
