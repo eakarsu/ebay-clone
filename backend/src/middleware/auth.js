@@ -29,7 +29,7 @@ const authenticateToken = async (req, res, next) => {
     }
 
     const result = await pool.query(
-      'SELECT id, username, email, first_name, last_name, is_seller, avatar_url FROM users WHERE id = $1 AND status = $2',
+      'SELECT id, username, email, first_name, last_name, is_seller, is_admin, avatar_url FROM users WHERE id = $1 AND status = $2',
       [decoded.userId, 'active']
     );
 
@@ -67,7 +67,7 @@ const optionalAuth = async (req, res, next) => {
     }
 
     const result = await pool.query(
-      'SELECT id, username, email, first_name, last_name, is_seller, avatar_url FROM users WHERE id = $1 AND status = $2',
+      'SELECT id, username, email, first_name, last_name, is_seller, is_admin, avatar_url FROM users WHERE id = $1 AND status = $2',
       [decoded.userId, 'active']
     );
 

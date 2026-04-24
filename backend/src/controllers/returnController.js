@@ -110,7 +110,7 @@ const getReturn = async (req, res, next) => {
 // Get user's returns (as buyer or seller)
 const getMyReturns = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, type = 'buyer', status } = req.query;
+    const { page = 1, limit = 50, type = 'buyer', status } = req.query;
     const offset = (page - 1) * limit;
 
     const userColumn = type === 'seller' ? 'seller_id' : 'buyer_id';

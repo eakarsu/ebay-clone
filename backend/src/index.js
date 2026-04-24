@@ -8,6 +8,7 @@ require('dotenv').config();
 
 const { testConnection } = require('./config/database');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const { authenticateToken } = require('./middleware/auth');
 const realtime = require('./realtime/socket');
 
 // Import routes

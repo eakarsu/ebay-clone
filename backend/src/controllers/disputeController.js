@@ -137,7 +137,7 @@ const getDispute = async (req, res, next) => {
 // Get user's disputes
 const getMyDisputes = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, status } = req.query;
+    const { page = 1, limit = 50, status } = req.query;
     const offset = (page - 1) * limit;
 
     let query = `

@@ -186,6 +186,32 @@ seed_all_data() {
         echo -e "${GREEN}✓ Security features seed data loaded${NC}"
     fi
 
+    # Fill every feature table to >=15 rows (idempotent)
+    if [ -f "$DATABASE_DIR/seed_fill_features.sql" ]; then
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$DATABASE_DIR/seed_fill_features.sql" 2>/dev/null || true
+        echo -e "${GREEN}✓ Feature fill seed data loaded${NC}"
+    fi
+
+    # Fill per-user feature rows to >=15 for EVERY user so every login shows data
+    if [ -f "$DATABASE_DIR/seed_per_user_all.sql" ]; then
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$DATABASE_DIR/seed_per_user_all.sql" 2>/dev/null || true
+        echo -e "${GREEN}✓ Per-user feature data loaded (all 20 users)${NC}"
+    fi
+
+    # Per-user GAP fill: tables the main per-user seed missed (analytics,
+    # logs, A/B tests, live chat, payments, etc.) — 15+ rows per user.
+    if [ -f "$DATABASE_DIR/seed_per_user_gaps.sql" ]; then
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$DATABASE_DIR/seed_per_user_gaps.sql" 2>/dev/null || true
+        echo -e "${GREEN}✓ Per-user gap-fill data loaded${NC}"
+    fi
+
+    # Seller Performance dashboard: 15+ defects, 15+ months of orders, tracking,
+    # and a refreshed seller_performance row per seller.
+    if [ -f "$DATABASE_DIR/seed_seller_performance.sql" ]; then
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$DATABASE_DIR/seed_seller_performance.sql" 2>/dev/null || true
+        echo -e "${GREEN}✓ Seller performance data loaded (every seller)${NC}"
+    fi
+
     echo ""
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${GREEN}Test Accounts Created:${NC}"

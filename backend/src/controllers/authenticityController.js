@@ -179,8 +179,8 @@ const getUserAuthenticityRequests = async (req, res) => {
     const result = await pool.query(
       `SELECT ar.*, p.title as product_title, o.order_number
        FROM authenticity_requests ar
-       JOIN products p ON ar.product_id = p.id
-       JOIN orders o ON ar.order_id = o.id
+       LEFT JOIN products p ON ar.product_id = p.id
+       LEFT JOIN orders o ON ar.order_id = o.id
        WHERE ${whereClause}
        ORDER BY ar.created_at DESC`,
       [req.user.id]

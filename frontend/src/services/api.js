@@ -223,7 +223,7 @@ export const recommendationService = {
 
 // Price Drop Alerts
 export const priceAlertService = {
-  getMyAlerts: () => api.get('/price-alerts/my'),
+  getMyAlerts: () => api.get('/price-alerts'),
   create: (data) => api.post('/price-alerts', data),
   update: (id, data) => api.put(`/price-alerts/${id}`, data),
   delete: (id) => api.delete(`/price-alerts/${id}`),

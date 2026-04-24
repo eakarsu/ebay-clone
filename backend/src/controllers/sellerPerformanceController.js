@@ -391,48 +391,69 @@ const appealDefect = async (req, res) => {
 };
 
 // Get seller level benefits
+// Returns a stable, per-level benefits payload that the SellerPerformance
+// dashboard UI expects. The seller_benefits table (performance_level,
+// benefit_name, benefit_description) carries the named perks; the numeric
+// perk values (fvfDiscount, searchBoost, etc.) are fixed per level.
+const LEVEL_BENEFITS = {
+  below_standard: {
+    fvfDiscount: -5,  promotedDiscount: 0,  topRatedBadge: false, prioritySupport: false, fastNFree: false, searchBoost: -20,
+  },
+  standard: {
+    fvfDiscount: 0,   promotedDiscount: 0,  topRatedBadge: false, prioritySupport: false, fastNFree: false, searchBoost: 0,
+  },
+  above_standard: {
+    fvfDiscount: 0,   promotedDiscount: 5,  topRatedBadge: false, prioritySupport: false, fastNFree: false, searchBoost: 5,
+  },
+  top_rated: {
+    fvfDiscount: 10,  promotedDiscount: 10, topRatedBadge: true,  prioritySupport: true,  fastNFree: false, searchBoost: 15,
+  },
+  top_rated_plus: {
+    fvfDiscount: 20,  promotedDiscount: 15, topRatedBadge: true,  prioritySupport: true,  fastNFree: true,  searchBoost: 25,
+  },
+};
+
 const getSellerBenefits = async (req, res) => {
   try {
-    // Get current seller level
     const performanceResult = await pool.query(
-      `SELECT seller_level, final_value_fee_discount, promoted_listing_discount
-       FROM seller_performance WHERE seller_id = $1`,
+      `SELECT seller_level FROM seller_performance WHERE seller_id = $1`,
       [req.user.id]
     );
-
     const currentLevel = performanceResult.rows[0]?.seller_level || 'standard';
-    const fvfDiscount = parseFloat(performanceResult.rows[0]?.final_value_fee_discount) || 0;
-    const promotedDiscount = parseFloat(performanceResult.rows[0]?.promoted_listing_discount) || 0;
 
-    // Get named benefits per level from the seller_benefits table.
-    // Schema: performance_level, benefit_name, benefit_description, is_active
-    const benefitsResult = await pool.query(
-      `SELECT DISTINCT performance_level, benefit_name, benefit_description
-       FROM seller_benefits
-       WHERE is_active = true
-       ORDER BY performance_level, benefit_name`
-    );
-
-    const byLevel = {};
-    for (const row of benefitsResult.rows) {
-      if (!byLevel[row.performance_level]) byLevel[row.performance_level] = [];
-      byLevel[row.performance_level].push({
-        name: row.benefit_name,
-        description: row.benefit_description
-      });
+    // Named perks from seller_benefits table, keyed by level
+    let byLevel = {};
+    try {
+      const benefitsResult = await pool.query(
+        `SELECT DISTINCT performance_level, benefit_name, benefit_description
+         FROM seller_benefits
+         WHERE is_active = true
+         ORDER BY performance_level, benefit_name`
+      );
+      for (const row of benefitsResult.rows) {
+        if (!byLevel[row.performance_level]) byLevel[row.performance_level] = [];
+        byLevel[row.performance_level].push({
+          name: row.benefit_name,
+          description: row.benefit_description,
+        });
+      }
+    } catch (_) {
+      byLevel = {};
     }
+
+    const current = LEVEL_BENEFITS[currentLevel] || LEVEL_BENEFITS.standard;
 
     res.json({
       currentLevel,
       benefits: {
-        fvfDiscount,
-        promotedDiscount,
-        items: byLevel[currentLevel] || []
+        ...current,
+        items: byLevel[currentLevel] || [],
       },
-      allLevels: Object.keys(byLevel).map(level => ({
+      allLevels: Object.keys(LEVEL_BENEFITS).map((level) => ({
         level,
-        items: byLevel[level]
-      }))
+        ...LEVEL_BENEFITS[level],
+        items: byLevel[level] || [],
+      })),
     });
   } catch (error) {
     console.error('Get seller benefits error:', error.message);
