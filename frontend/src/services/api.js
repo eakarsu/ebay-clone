@@ -707,6 +707,20 @@ export const flashSaleService = {
   cancel: (id) => api.delete(`/flash-sales/${id}`),
 };
 
+// Seller follows + activity feed
+export const followService = {
+  status: (sellerId) => api.get(`/sellers/${sellerId}/follow-status`),
+  follow: (sellerId) => api.post(`/sellers/${sellerId}/follow`),
+  unfollow: (sellerId) => api.delete(`/sellers/${sellerId}/follow`),
+  feed: (limit) => api.get('/feed', { params: { limit } }),
+  myFollowing: () => api.get('/me/following'),
+};
+
+// Order timeline
+export const orderTimelineService = {
+  get: (orderId) => api.get(`/orders/${orderId}/timeline`),
+};
+
 // Trust score
 export const trustScoreService = {
   get: (userId) => api.get(`/trust-score/${userId}`),

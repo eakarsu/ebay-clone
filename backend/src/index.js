@@ -103,6 +103,7 @@ const referralRoutes = require('./routes/referrals');
 const flashSaleRoutes = require('./routes/flashSales');
 const groupBuyRoutes = require('./routes/groupBuys');
 const trustScoreRoutes = require('./routes/trustScore');
+const sellerFollowsModule = require('./routes/sellerFollows');
 
 const app = express();
 
@@ -243,6 +244,11 @@ app.use('/api/referrals', referralRoutes);
 app.use('/api/flash-sales', flashSaleRoutes);
 app.use('/api/group-buys', groupBuyRoutes);
 app.use('/api/trust-score', trustScoreRoutes);
+// Seller follow actions piggyback on /api/sellers/:id/follow*
+app.use('/api/sellers', sellerFollowsModule.router);
+// Current-user feed + following list
+app.get('/api/feed', authenticateToken, sellerFollowsModule.getFollowingFeed);
+app.get('/api/me/following', authenticateToken, sellerFollowsModule.getMyFollowing);
 
 // Health check
 app.get('/api/health', (req, res) => {

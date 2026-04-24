@@ -59,6 +59,8 @@ import PriceAlert from '../components/Features/PriceAlert';
 import PriceHistoryChart from '../components/PriceHistoryChart';
 import SocialShare from '../components/Features/SocialShare';
 import TrustBadge from '../components/TrustBadge';
+import FollowButton from '../components/FollowButton';
+import LiveViewerBadge from '../components/LiveViewerBadge';
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -317,6 +319,11 @@ const ProductDetail = () => {
             {product.title}
           </Typography>
 
+          {/* Live viewer presence */}
+          <Box sx={{ mb: 2 }}>
+            <LiveViewerBadge productId={product.id} />
+          </Box>
+
           {/* Seller info */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
             <Avatar src={getImageUrl(product.seller?.avatarUrl)}>
@@ -338,6 +345,11 @@ const ProductDetail = () => {
                 </Typography>
                 {product.seller?.id && <TrustBadge userId={product.seller.id} />}
               </Box>
+              {product.seller?.id && (
+                <Box sx={{ mt: 1 }}>
+                  <FollowButton sellerId={product.seller.id} />
+                </Box>
+              )}
             </Box>
           </Box>
 

@@ -16,6 +16,7 @@ import {
   Step,
   StepLabel,
 } from '@mui/material';
+import OrderTimeline from '../components/OrderTimeline';
 import {
   ArrowBack,
   LocalShipping,
@@ -141,6 +142,13 @@ const OrderDetail = () => {
           </Stepper>
         </Paper>
       )}
+
+      {/* Detailed status history timeline */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>Status history</Typography>
+        <Divider sx={{ mb: 2 }} />
+        <OrderTimeline orderId={order.id} currentStatus={order.status} />
+      </Paper>
 
       <Grid container spacing={3}>
         {/* Order Items */}

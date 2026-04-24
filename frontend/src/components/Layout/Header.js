@@ -129,6 +129,11 @@ const Header = () => {
               <Link to="/for-you" style={{ color: 'inherit', textDecoration: 'none' }}>
                 <Typography variant="body2">For You</Typography>
               </Link>
+              {user && (
+                <Link to="/feed" style={{ color: 'inherit', textDecoration: 'none' }}>
+                  <Typography variant="body2">Feed</Typography>
+                </Link>
+              )}
               <Link to="/flash-sales" style={{ color: '#e53238', textDecoration: 'none' }}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>Flash Sales</Typography>
               </Link>

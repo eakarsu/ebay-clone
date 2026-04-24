@@ -66,6 +66,7 @@ import FlashSales from './pages/FlashSales';
 import GroupBuys from './pages/GroupBuys';
 import ForYou from './pages/ForYou';
 import InventoryForecast from './pages/InventoryForecast';
+import Feed from './pages/Feed';
 
 // Footer/Info Pages
 import Help from './pages/Help';
@@ -200,6 +201,7 @@ function App() {
                 <Route path="/group-buys" element={<GroupBuys />} />
                 <Route path="/for-you" element={<ForYou />} />
                 <Route path="/seller/inventory-forecast" element={<InventoryForecast />} />
+                <Route path="/feed" element={<Feed />} />
 
                 {/* Latest eBay 2025-2026 Feature Routes */}
                 <Route path="/deals" element={<DailyDeals />} />
