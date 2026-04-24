@@ -126,6 +126,12 @@ const Header = () => {
               <Link to="/deals" style={{ color: 'inherit', textDecoration: 'none' }}>
                 <Typography variant="body2">Daily Deals</Typography>
               </Link>
+              <Link to="/flash-sales" style={{ color: '#e53238', textDecoration: 'none' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>Flash Sales</Typography>
+              </Link>
+              <Link to="/group-buys" style={{ color: 'inherit', textDecoration: 'none' }}>
+                <Typography variant="body2">Group Buys</Typography>
+              </Link>
               <Link to="/live" style={{ color: '#e53238', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <LiveIcon sx={{ fontSize: 14 }} />
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>eBay Live</Typography>
@@ -293,6 +299,14 @@ const Header = () => {
                     <MenuItem component={Link} to="/my-coupons" onClick={handleCloseMenu}>
                       <ListItemIcon><DealsIcon /></ListItemIcon>
                       <ListItemText>My Coupons</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/wallet" onClick={handleCloseMenu}>
+                      <ListItemIcon><DealsIcon /></ListItemIcon>
+                      <ListItemText>Wallet</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/referrals" onClick={handleCloseMenu}>
+                      <ListItemIcon><DealsIcon /></ListItemIcon>
+                      <ListItemText>Refer a Friend</ListItemText>
                     </MenuItem>
                     <MenuItem component={Link} to="/my-bids" onClick={handleCloseMenu}>
                       <ListItemIcon><BidsIcon /></ListItemIcon>

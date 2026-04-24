@@ -5,6 +5,7 @@ const { authenticator } = require('otplib');
 const QRCode = require('qrcode');
 const { pool } = require('../config/database');
 const { validatePassword } = require('../utils/passwordValidator');
+const { applyReferralOnSignup } = require('./referralController');
 
 // Configure authenticator with a larger time window to handle clock drift
 authenticator.options = {
@@ -57,6 +58,12 @@ const register = async (req, res, next) => {
 
     // Create shopping cart for user
     await pool.query('INSERT INTO shopping_carts (user_id) VALUES ($1)', [user.id]);
+
+    // Apply referral code (if the request included `ref`). Never blocks signup.
+    const refCode = req.body.ref || req.body.referralCode || req.query.ref;
+    if (refCode) {
+      await applyReferralOnSignup(user.id, refCode).catch(() => {});
+    }
 
     // Send welcome email
     await emailService.sendWelcomeEmail({

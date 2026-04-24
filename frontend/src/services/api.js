@@ -688,4 +688,32 @@ export const shoppingAssistantService = {
   chat: (messages) => api.post('/shopping-assistant/chat', { messages }),
 };
 
+// Wallet / store credit
+export const walletService = {
+  get: () => api.get('/wallet'),
+  topUp: (amount, note) => api.post('/wallet/topup', { amount, note }),
+};
+
+// Referrals
+export const referralService = {
+  me: () => api.get('/referrals/me'),
+};
+
+// Flash sales
+export const flashSaleService = {
+  listActive: () => api.get('/flash-sales/active'),
+  listMine: () => api.get('/flash-sales/mine'),
+  create: (payload) => api.post('/flash-sales', payload),
+  cancel: (id) => api.delete(`/flash-sales/${id}`),
+};
+
+// Group buys
+export const groupBuyService = {
+  listOpen: () => api.get('/group-buys'),
+  get: (id) => api.get(`/group-buys/${id}`),
+  create: (payload) => api.post('/group-buys', payload),
+  commit: (id, quantity) => api.post(`/group-buys/${id}/commit`, { quantity }),
+  withdraw: (id) => api.delete(`/group-buys/${id}/commit`),
+};
+
 export default api;

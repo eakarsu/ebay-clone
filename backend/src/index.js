@@ -98,6 +98,10 @@ const lowStockRoutes = require('./routes/lowStock');
 const priceHistoryRoutes = require('./routes/priceHistory');
 const imageSearchRoutes = require('./routes/imageSearch');
 const shoppingAssistantRoutes = require('./routes/shoppingAssistant');
+const walletRoutes = require('./routes/wallet');
+const referralRoutes = require('./routes/referrals');
+const flashSaleRoutes = require('./routes/flashSales');
+const groupBuyRoutes = require('./routes/groupBuys');
 
 const app = express();
 
@@ -233,6 +237,10 @@ app.use('/api/low-stock', lowStockRoutes);
 app.use('/api/price-history', priceHistoryRoutes);
 app.use('/api/image-search', imageSearchRoutes);
 app.use('/api/shopping-assistant', shoppingAssistantRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/referrals', referralRoutes);
+app.use('/api/flash-sales', flashSaleRoutes);
+app.use('/api/group-buys', groupBuyRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

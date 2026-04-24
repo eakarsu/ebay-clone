@@ -2,6 +2,7 @@ const { pool } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const feedbackService = require('../services/feedbackService');
 const { checkAndNotifyLowStock } = require('./lowStockController');
+const { applyReferralOnFirstPurchase } = require('./referralController');
 
 // Validate a coupon code against a running subtotal (and optional seller scope).
 // Returns { coupon, discountAmount } or throws a user-facing Error.
@@ -237,6 +238,10 @@ const createOrder = async (req, res, next) => {
     // Fire low-stock alerts after COMMIT so a notification insert failure
     // never rolls back the order. Non-blocking.
     Promise.all(stockChangedProductIds.map((id) => checkAndNotifyLowStock(id))).catch(() => {});
+
+    // Referral first-purchase bonus is idempotent (unique index) so we can
+    // safely call after every order — it only pays once per referred user.
+    applyReferralOnFirstPurchase(req.user.id).catch(() => {});
 
     res.status(201).json({
       message: 'Order(s) placed successfully',

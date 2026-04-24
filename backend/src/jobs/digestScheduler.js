@@ -277,6 +277,65 @@ const runFeedbackReminders = async () => {
   console.log(`[digest] feedback_reminders: ${notified} buyers notified`);
 };
 
+// ---------- Job 5: Abandoned cart reminders ----------
+// Carts inactive for > 24h that haven't been reminded yet get one email nudge.
+// `abandoned_reminded_at` is stamped on send so we never double-send; if the
+// user returns and edits their cart, the trigger clears the stamp and they
+// become eligible again after another 24h of inactivity.
+const runAbandonedCartReminders = async () => {
+  const runId = await claimRun('abandoned_cart_reminders');
+  if (!runId) return;
+  let notified = 0;
+
+  const carts = await pool.query(
+    `SELECT sc.id AS cart_id, sc.user_id, u.email, u.first_name,
+            sc.last_activity_at,
+            (SELECT COUNT(*) FROM cart_items ci WHERE ci.cart_id = sc.id) AS item_count
+       FROM shopping_carts sc
+       JOIN users u ON u.id = sc.user_id
+      WHERE sc.last_activity_at < NOW() - INTERVAL '24 hours'
+        AND sc.abandoned_reminded_at IS NULL
+        AND u.email IS NOT NULL
+      LIMIT 200`
+  ).catch(() => ({ rows: [] }));
+
+  for (const cart of carts.rows) {
+    if (parseInt(cart.item_count, 10) === 0) continue; // empty cart — nothing to remind
+
+    const items = await pool.query(
+      `SELECT p.title, p.slug, p.buy_now_price, p.current_price, ci.quantity
+         FROM cart_items ci
+         JOIN products p ON p.id = ci.product_id
+        WHERE ci.cart_id = $1
+        LIMIT 10`,
+      [cart.cart_id]
+    );
+
+    const base = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const rows = items.rows.map((p) =>
+      `<li>${escapeHtml(p.title)} × ${p.quantity} — $${p.current_price || p.buy_now_price || 0}</li>`
+    ).join('');
+    const html = `<h2>You left items in your cart</h2>
+      <p>Hey${cart.first_name ? ' ' + escapeHtml(cart.first_name) : ''}, these items are waiting for you:</p>
+      <ul>${rows}</ul>
+      <p><a href="${base}/cart" style="display:inline-block;padding:10px 16px;background:#0064d2;color:#fff;border-radius:4px;text-decoration:none">Finish checkout</a></p>`;
+
+    try {
+      await sendEmail(cart.email, 'You left items in your cart', html, cart.user_id, 'abandoned_cart');
+      notified++;
+    } catch (_) { /* ignore per-user failure */ }
+
+    // Always stamp so we don't retry this same abandoned cart tomorrow.
+    await pool.query(
+      'UPDATE shopping_carts SET abandoned_reminded_at = NOW() WHERE id = $1',
+      [cart.cart_id]
+    );
+  }
+
+  await finishRun(runId, notified);
+  console.log(`[digest] abandoned_cart_reminders: ${notified} users notified`);
+};
+
 const escapeHtml = (s) =>
   String(s || '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -291,6 +350,7 @@ const runAll = async () => {
   try { await runPriceDropDigest(); } catch (e) { console.error('price_drop_digest failed:', e.message); }
   try { await runSavedSearchAlerts(); } catch (e) { console.error('saved_search_alerts failed:', e.message); }
   try { await runFeedbackReminders(); } catch (e) { console.error('feedback_reminders failed:', e.message); }
+  try { await runAbandonedCartReminders(); } catch (e) { console.error('abandoned_cart_reminders failed:', e.message); }
 };
 
 const start = () => {
@@ -308,4 +368,4 @@ const start = () => {
   console.log('[digest] scheduler started');
 };
 
-module.exports = { start, runWatchedDigest, runPriceDropDigest, runSavedSearchAlerts, runFeedbackReminders };
+module.exports = { start, runWatchedDigest, runPriceDropDigest, runSavedSearchAlerts, runFeedbackReminders, runAbandonedCartReminders };

@@ -60,6 +60,10 @@ import BestMatchAdmin from './pages/BestMatchAdmin';
 import ExperimentsAdmin from './pages/ExperimentsAdmin';
 import LowStockAlerts from './pages/LowStockAlerts';
 import ImageSearch from './pages/ImageSearch';
+import Wallet from './pages/Wallet';
+import Referrals from './pages/Referrals';
+import FlashSales from './pages/FlashSales';
+import GroupBuys from './pages/GroupBuys';
 
 // Footer/Info Pages
 import Help from './pages/Help';
@@ -188,6 +192,10 @@ function App() {
                 <Route path="/admin/experiments" element={<ExperimentsAdmin />} />
                 <Route path="/seller/low-stock" element={<LowStockAlerts />} />
                 <Route path="/image-search" element={<ImageSearch />} />
+                <Route path="/wallet" element={<Wallet />} />
+                <Route path="/referrals" element={<Referrals />} />
+                <Route path="/flash-sales" element={<FlashSales />} />
+                <Route path="/group-buys" element={<GroupBuys />} />
 
                 {/* Latest eBay 2025-2026 Feature Routes */}
                 <Route path="/deals" element={<DailyDeals />} />
