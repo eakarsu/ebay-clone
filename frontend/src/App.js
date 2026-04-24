@@ -56,6 +56,8 @@ import MyCoupons from './pages/MyCoupons';
 import SellerCoupons from './pages/SellerCoupons';
 import Analytics from './pages/Analytics';
 import ApiKeys from './pages/ApiKeys';
+import BestMatchAdmin from './pages/BestMatchAdmin';
+import ExperimentsAdmin from './pages/ExperimentsAdmin';
 
 // Footer/Info Pages
 import Help from './pages/Help';
@@ -244,6 +246,8 @@ function App() {
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/api-keys" element={<ApiKeys />} />
                 <Route path="/developer/api-keys" element={<ApiKeys />} />
+                <Route path="/admin/best-match" element={<BestMatchAdmin />} />
+                <Route path="/admin/experiments" element={<ExperimentsAdmin />} />
 
                 {/* Latest eBay 2025-2026 Feature Routes */}
                 <Route path="/deals" element={<DailyDeals />} />

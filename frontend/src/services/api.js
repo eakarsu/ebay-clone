@@ -626,6 +626,19 @@ export const authenticityService = {
   listMine: (type = 'buyer') => api.get('/authenticity/user/requests', { params: { type } }),
 };
 
+export const bestMatchService = {
+  qualityFactors: () => api.get('/best-match/quality-factors'),
+  updateScore: (productId) => api.put(`/best-match/products/${productId}/quality-score`),
+  batchUpdate: () => api.post('/best-match/batch-update'),
+};
+
+export const experimentService = {
+  list: () => api.get('/experiments'),
+  results: (key) => api.get(`/experiments/${key}/results`),
+  assign: (key, sessionId) => api.get(`/experiments/assign/${key}`, { params: { sessionId } }),
+  convert: (data) => api.post('/experiments/convert', data),
+};
+
 // Auction Chat Service
 export const auctionChatService = {
   getChat: (productId, limit = 50) => api.get(`/auction-chat/${productId}`, { params: { limit } }),

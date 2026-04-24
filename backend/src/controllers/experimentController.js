@@ -105,4 +105,20 @@ const results = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 
-module.exports = { assign, convert, results };
+/** GET /api/experiments — admin list of all experiments */
+const listExperiments = async (req, res, next) => {
+  try {
+    const r = await pool.query(
+      `SELECT key, name, variants, status, starts_at, ends_at,
+              (SELECT COUNT(DISTINCT COALESCE(user_id::text, session_id))::int
+                 FROM experiment_assignments WHERE experiment_key = e.key) AS assigned,
+              (SELECT COUNT(*)::int
+                 FROM experiment_conversions WHERE experiment_key = e.key) AS conversions
+         FROM experiments e
+        ORDER BY starts_at DESC NULLS LAST`
+    );
+    res.json(r.rows);
+  } catch (e) { next(e); }
+};
+
+module.exports = { assign, convert, results, listExperiments };
