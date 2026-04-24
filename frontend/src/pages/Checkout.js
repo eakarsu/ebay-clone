@@ -25,7 +25,7 @@ import {
 } from '@mui/icons-material';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { addressService, orderService } from '../services/api';
+import { addressService, orderService, couponService } from '../services/api';
 import api from '../services/api';
 
 const steps = ['Shipping', 'Payment', 'Review'];
@@ -54,6 +54,44 @@ const Checkout = () => {
   const [error, setError] = useState('');
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderIds, setOrderIds] = useState([]);
+
+  // Coupon state — UI-side only; backend still processes total on its own.
+  // Applied coupon persists across step navigation.
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null); // { id, code, discountAmount, description }
+  const [couponError, setCouponError] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponError('');
+    setCouponLoading(true);
+    try {
+      const { data } = await couponService.validate(
+        couponCode.trim().toUpperCase(),
+        cart.summary.subtotal,
+      );
+      if (data.valid && data.coupon) {
+        setAppliedCoupon(data.coupon);
+      } else {
+        setCouponError('Coupon could not be applied');
+      }
+    } catch (e) {
+      setCouponError(e.response?.data?.error || 'Invalid coupon code');
+      setAppliedCoupon(null);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponError('');
+  };
+
+  const discountAmount = appliedCoupon ? Number(appliedCoupon.discountAmount) : 0;
+  const totalAfterDiscount = Math.max(0, cart.summary.total - discountAmount);
 
   useEffect(() => {
     if (!user) {
@@ -142,6 +180,7 @@ const Checkout = () => {
         })),
         shippingAddressId: selectedAddress,
         billingAddressId: selectedAddress,
+        ...(appliedCoupon ? { couponCode: appliedCoupon.code } : {}),
       };
 
       const response = await orderService.create(orderData);
@@ -487,6 +526,49 @@ const Checkout = () => {
           </Typography>
         </Paper>
 
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Coupon Code
+          </Typography>
+          {appliedCoupon ? (
+            <Alert
+              severity="success"
+              action={
+                <Button color="inherit" size="small" onClick={removeCoupon}>
+                  Remove
+                </Button>
+              }
+            >
+              <strong>{appliedCoupon.code}</strong> applied — saved $
+              {Number(appliedCoupon.discountAmount).toFixed(2)}
+              {appliedCoupon.description ? ` (${appliedCoupon.description})` : ''}
+            </Alert>
+          ) : (
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField
+                size="small"
+                placeholder="Enter code"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => { if (e.key === 'Enter') applyCoupon(); }}
+                sx={{ flex: 1 }}
+              />
+              <Button
+                variant="outlined"
+                onClick={applyCoupon}
+                disabled={couponLoading || !couponCode.trim()}
+              >
+                {couponLoading ? '…' : 'Apply'}
+              </Button>
+            </Box>
+          )}
+          {couponError && (
+            <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
+              {couponError}
+            </Typography>
+          )}
+        </Paper>
+
         <Paper sx={{ p: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 2 }}>
             Order Items ({cart.items.length})
@@ -500,9 +582,19 @@ const Checkout = () => {
             </Box>
           ))}
           <Divider sx={{ my: 2 }} />
+          {appliedCoupon && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="body2" color="success.main">
+                Coupon ({appliedCoupon.code})
+              </Typography>
+              <Typography variant="body2" color="success.main">
+                -${discountAmount.toFixed(2)}
+              </Typography>
+            </Box>
+          )}
           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
             <Typography variant="subtitle2">Total</Typography>
-            <Typography variant="subtitle2">${cart.summary.total.toFixed(2)}</Typography>
+            <Typography variant="subtitle2">${totalAfterDiscount.toFixed(2)}</Typography>
           </Box>
         </Paper>
       </Box>
@@ -612,11 +704,17 @@ const Checkout = () => {
               <Typography color="text.secondary">Est. Tax</Typography>
               <Typography>${cart.summary.tax.toFixed(2)}</Typography>
             </Box>
+            {appliedCoupon && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography color="success.main">Coupon ({appliedCoupon.code})</Typography>
+                <Typography color="success.main">-${discountAmount.toFixed(2)}</Typography>
+              </Box>
+            )}
             <Divider sx={{ my: 2 }} />
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="h6">Total</Typography>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                ${cart.summary.total.toFixed(2)}
+                ${totalAfterDiscount.toFixed(2)}
               </Typography>
             </Box>
           </Paper>

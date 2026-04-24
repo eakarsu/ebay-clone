@@ -31,8 +31,10 @@ import {
   Delete,
   StarBorder,
   AddPhotoAlternate,
+  AutoFixHigh,
+  Close,
 } from '@mui/icons-material';
-import { categoryService, productService, uploadService } from '../services/api';
+import { categoryService, productService, uploadService, aiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const steps = ['Basic Info', 'Photos', 'Item Details', 'Pricing', 'Shipping', 'Returns'];
@@ -50,6 +52,9 @@ const SellItem = () => {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [enhancingImage, setEnhancingImage] = useState(null);
+  const [imageAnalysis, setImageAnalysis] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     // Step 1: Basic Info
@@ -79,6 +84,10 @@ const SellItem = () => {
     quantity: 1,
     acceptsOffers: false,
     minimumOfferAmount: '',
+    yourCost: '',
+
+    // Country of Origin (for international shipping)
+    countryOfOrigin: '',
 
     // Step 5: Shipping
     freeShipping: true,
@@ -240,6 +249,40 @@ const SellItem = () => {
     });
   };
 
+  const handleAnalyzeImage = async (image, index) => {
+    if (!image.url) {
+      setError('Please wait for the image to finish uploading');
+      return;
+    }
+
+    setEnhancingImage(index);
+    setAnalysisLoading(true);
+    setImageAnalysis(null);
+
+    try {
+      const response = await aiService.analyzeImage({
+        imageUrl: image.url,
+        productTitle: formData.title,
+        productCategory: categories.find((c) => c.id === formData.categoryId)?.name,
+      });
+
+      if (response.data.success) {
+        setImageAnalysis(response.data.data.analysis);
+      } else {
+        setError('Failed to analyze image');
+      }
+    } catch (err) {
+      setError('Error analyzing image. Please try again.');
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const closeImageAnalysis = () => {
+    setEnhancingImage(null);
+    setImageAnalysis(null);
+  };
+
   const handleImageInputChange = (e) => {
     handleFileSelect(e.target.files);
     e.target.value = '';
@@ -325,6 +368,8 @@ const SellItem = () => {
         packageWidth: formData.packageWidth ? parseFloat(formData.packageWidth) : null,
         packageHeight: formData.packageHeight ? parseFloat(formData.packageHeight) : null,
         minimumOfferAmount: formData.minimumOfferAmount ? parseFloat(formData.minimumOfferAmount) : null,
+        yourCost: formData.yourCost ? parseFloat(formData.yourCost) : null,
+        countryOfOrigin: formData.countryOfOrigin || null,
         images: formData.images.map((img) => ({ url: img.url, thumbnail: img.thumbnail })),
       };
 
@@ -533,6 +578,10 @@ const SellItem = () => {
                   )}
                   {!image.uploading && (
                     <Box sx={{ position: 'absolute', bottom: 8, right: 8, display: 'flex', gap: 0.5 }}>
+                      <IconButton size="small" onClick={() => handleAnalyzeImage(image, index)}
+                        sx={{ bgcolor: 'white', '&:hover': { bgcolor: '#e3f2fd' } }} title="AI Photo Tips">
+                        <AutoFixHigh fontSize="small" color="primary" />
+                      </IconButton>
                       {index !== 0 && (
                         <IconButton size="small" onClick={() => handleSetPrimary(index)}
                           sx={{ bgcolor: 'white', '&:hover': { bgcolor: '#f5f5f5' } }} title="Set as main photo">
@@ -563,6 +612,47 @@ const SellItem = () => {
             )}
           </Grid>
         </Box>
+      )}
+
+      {/* AI Image Analysis Panel */}
+      {enhancingImage !== null && (
+        <Paper sx={{ mt: 3, p: 3, bgcolor: '#f8f9ff', border: '1px solid #3665f3' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AutoFixHigh color="primary" />
+              <Typography variant="h6" color="primary">AI Photo Enhancement Tips</Typography>
+            </Box>
+            <IconButton onClick={closeImageAnalysis} size="small">
+              <Close />
+            </IconButton>
+          </Box>
+
+          {analysisLoading ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 3 }}>
+              <CircularProgress size={24} />
+              <Typography>Analyzing your photo...</Typography>
+            </Box>
+          ) : imageAnalysis ? (
+            <Box>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <Box
+                  component="img"
+                  src={formData.images[enhancingImage]?.preview || formData.images[enhancingImage]?.url}
+                  alt="Analyzed"
+                  sx={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 1 }}
+                />
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {imageAnalysis}
+                  </Typography>
+                </Box>
+              </Box>
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Tip: Photos with clean white backgrounds typically get 20% more views on eBay.
+              </Alert>
+            </Box>
+          ) : null}
+        </Paper>
       )}
     </Box>
   );
@@ -688,6 +778,32 @@ const SellItem = () => {
             helperText="Auto-decline offers below this amount" />
         </Grid>
       )}
+
+      <Grid item xs={12}>
+        <Divider sx={{ my: 1 }} />
+        <Typography variant="subtitle2" sx={{ mb: 2, mt: 2 }}>Profit Tracking (Optional)</Typography>
+      </Grid>
+
+      <Grid item xs={12} sm={6}>
+        <TextField fullWidth label="Your Cost" name="yourCost" type="number"
+          value={formData.yourCost} onChange={handleChange}
+          InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+          helperText="Track your item cost to calculate profit margin" />
+      </Grid>
+
+      {formData.yourCost && formData.buyNowPrice && (
+        <Grid item xs={12} sm={6}>
+          <Paper sx={{ p: 2, bgcolor: 'success.light' }}>
+            <Typography variant="subtitle2" color="success.dark">Estimated Profit</Typography>
+            <Typography variant="h5" color="success.dark" sx={{ fontWeight: 700 }}>
+              ${(parseFloat(formData.buyNowPrice) - parseFloat(formData.yourCost) - (formData.freeShipping ? parseFloat(formData.shippingCost || 0) : 0)).toFixed(2)}
+            </Typography>
+            <Typography variant="caption" color="success.dark">
+              {((parseFloat(formData.buyNowPrice) - parseFloat(formData.yourCost)) / parseFloat(formData.yourCost) * 100).toFixed(1)}% margin
+            </Typography>
+          </Paper>
+        </Grid>
+      )}
     </Grid>
   );
 
@@ -794,6 +910,37 @@ const SellItem = () => {
           control={<Checkbox checked={formData.allowsLocalPickup} onChange={handleChange} name="allowsLocalPickup" />}
           label="Offer local pickup - Buyers can pick up the item in person"
         />
+      </Grid>
+
+      <Grid item xs={12}>
+        <Divider sx={{ my: 1 }} />
+        <Typography variant="subtitle2" sx={{ mb: 2, mt: 2 }}>International Shipping</Typography>
+      </Grid>
+
+      <Grid item xs={12} sm={6}>
+        <FormControl fullWidth>
+          <InputLabel>Country of Origin</InputLabel>
+          <Select name="countryOfOrigin" value={formData.countryOfOrigin} onChange={handleChange} label="Country of Origin">
+            <MenuItem value="">Not specified</MenuItem>
+            <MenuItem value="United States">United States</MenuItem>
+            <MenuItem value="China">China</MenuItem>
+            <MenuItem value="Japan">Japan</MenuItem>
+            <MenuItem value="Germany">Germany</MenuItem>
+            <MenuItem value="United Kingdom">United Kingdom</MenuItem>
+            <MenuItem value="France">France</MenuItem>
+            <MenuItem value="Italy">Italy</MenuItem>
+            <MenuItem value="South Korea">South Korea</MenuItem>
+            <MenuItem value="Taiwan">Taiwan</MenuItem>
+            <MenuItem value="India">India</MenuItem>
+            <MenuItem value="Vietnam">Vietnam</MenuItem>
+            <MenuItem value="Mexico">Mexico</MenuItem>
+            <MenuItem value="Canada">Canada</MenuItem>
+            <MenuItem value="Other">Other</MenuItem>
+          </Select>
+        </FormControl>
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+          Required for international shipping and tariff calculation
+        </Typography>
       </Grid>
     </Grid>
   );

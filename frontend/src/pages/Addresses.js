@@ -32,6 +32,7 @@ import {
   LocationOn,
   Home,
   LocalShipping,
+  ArrowBack,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -184,9 +185,14 @@ const Addresses = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          My Addresses
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+            <ArrowBack />
+          </IconButton>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            My Addresses
+          </Typography>
+        </Box>
         <Button
           variant="contained"
           startIcon={<Add />}

@@ -19,6 +19,7 @@ import {
   DialogContent,
   DialogActions,
   Grid,
+  IconButton,
 } from '@mui/material';
 import {
   Security,
@@ -26,10 +27,13 @@ import {
   Smartphone,
   VpnKey,
   CheckCircle,
+  ArrowBack,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 const SecuritySettings = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -160,9 +164,14 @@ const SecuritySettings = () => {
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
-      <Typography variant="h4" sx={{ fontWeight: 700, mb: 4 }}>
-        Security Settings
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+          <ArrowBack />
+        </IconButton>
+        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+          Security Settings
+        </Typography>
+      </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>

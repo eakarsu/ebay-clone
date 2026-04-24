@@ -1,12 +1,27 @@
 const { pool } = require('../config/database');
+const realtime = require('../realtime/socket');
+const { checkBidRisk } = require('../services/fraudService');
+
+const SOFT_CLOSE_WINDOW_SECONDS = 60;   // extend auction if bid lands within this many seconds of end
+const SOFT_CLOSE_EXTENSION_SECONDS = 120; // extend by this much
 
 const placeBid = async (req, res, next) => {
+  const { productId, bidAmount, maxBidAmount } = req.body;
+
+  // Fraud / velocity check BEFORE opening a transaction
+  const risk = await checkBidRisk({
+    userId: req.user.id,
+    productId,
+    ip: req.ip,
+  });
+  if (risk.decision === 'deny') {
+    return res.status(429).json({ error: risk.reason });
+  }
+
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
-
-    const { productId, bidAmount, maxBidAmount } = req.body;
 
     // Get product details
     const productResult = await client.query(
@@ -66,12 +81,29 @@ const placeBid = async (req, res, next) => {
       [productId, req.user.id, bidAmount, maxBidAmount || bidAmount]
     );
 
-    // Update product
-    await client.query(
-      `UPDATE products SET current_price = $1, bid_count = bid_count + 1, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [bidAmount, productId]
-    );
+    // Soft close: if auction ends within the soft-close window, extend it.
+    const msToEnd = new Date(product.auction_end).getTime() - Date.now();
+    const extend = msToEnd > 0 && msToEnd < SOFT_CLOSE_WINDOW_SECONDS * 1000;
+
+    // Update product (optionally extending auction_end)
+    if (extend) {
+      await client.query(
+        `UPDATE products
+         SET current_price = $1,
+             bid_count = bid_count + 1,
+             auction_end = auction_end + ($3 || ' seconds')::interval,
+             extensions_count = COALESCE(extensions_count, 0) + 1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [bidAmount, productId, String(SOFT_CLOSE_EXTENSION_SECONDS)]
+      );
+    } else {
+      await client.query(
+        `UPDATE products SET current_price = $1, bid_count = bid_count + 1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [bidAmount, productId]
+      );
+    }
 
     // Notify outbid users
     const outbidUsers = await client.query(
@@ -93,6 +125,37 @@ const placeBid = async (req, res, next) => {
     }
 
     await client.query('COMMIT');
+
+    // Lookup bidder username for broadcast (outside transaction)
+    const bidderResult = await pool.query(
+      'SELECT username, avatar_url FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const bidder = bidderResult.rows[0] || {};
+
+    // Fetch the (possibly extended) auction_end and seq for catch-up clients
+    const after = await pool.query(
+      'SELECT auction_end FROM products WHERE id = $1',
+      [productId]
+    );
+
+    // Broadcast to everyone watching this auction
+    realtime.emitBid(productId, {
+      productId,
+      bidId: bidResult.rows[0].id,
+      bidSeq: bidResult.rows[0].seq,
+      amount: parseFloat(bidResult.rows[0].bid_amount),
+      bidCount: parseInt(product.bid_count) + 1,
+      time: bidResult.rows[0].created_at,
+      auctionEnd: after.rows[0]?.auction_end,
+      extended: extend,
+      extensionSeconds: extend ? SOFT_CLOSE_EXTENSION_SECONDS : 0,
+      bidder: {
+        id: req.user.id,
+        username: bidder.username,
+        avatarUrl: bidder.avatar_url,
+      },
+    });
 
     res.status(201).json({
       message: 'Bid placed successfully',
@@ -204,4 +267,44 @@ const getUserBids = async (req, res, next) => {
   }
 };
 
-module.exports = { placeBid, getBidsForProduct, getUserBids };
+/**
+ * Offline catch-up: returns all bids for a product with seq > cursor.
+ * Clients that were disconnected rejoin, ask for this, and merge into state.
+ */
+const getBidsSince = async (req, res, next) => {
+  try {
+    const { productId } = req.params;
+    const sinceSeq = parseInt(req.query.sinceSeq || '0', 10);
+    const result = await pool.query(
+      `SELECT b.id, b.seq, b.bid_amount, b.created_at, u.username, u.avatar_url
+       FROM bids b
+       JOIN users u ON b.bidder_id = u.id
+       WHERE b.product_id = $1 AND b.seq > $2
+       ORDER BY b.seq ASC
+       LIMIT 200`,
+      [productId, sinceSeq]
+    );
+
+    const prod = await pool.query(
+      'SELECT current_price, bid_count, auction_end FROM products WHERE id = $1',
+      [productId]
+    );
+
+    res.json({
+      bids: result.rows.map(r => ({
+        id: r.id,
+        seq: parseInt(r.seq),
+        amount: parseFloat(r.bid_amount),
+        time: r.created_at,
+        bidder: { username: r.username, avatarUrl: r.avatar_url },
+      })),
+      currentPrice: prod.rows[0] ? parseFloat(prod.rows[0].current_price) : null,
+      bidCount: prod.rows[0] ? parseInt(prod.rows[0].bid_count) : 0,
+      auctionEnd: prod.rows[0]?.auction_end || null,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { placeBid, getBidsForProduct, getUserBids, getBidsSince };

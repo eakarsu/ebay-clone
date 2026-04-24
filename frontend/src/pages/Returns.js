@@ -25,11 +25,14 @@ import {
   MenuItem,
   Tabs,
   Tab,
+  IconButton,
 } from '@mui/material';
-import { Add, Visibility } from '@mui/icons-material';
+import { Add, Visibility, ArrowBack } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 const Returns = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [returns, setReturns] = useState([]);
   const [tabValue, setTabValue] = useState(0);
@@ -147,9 +150,14 @@ const Returns = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          Returns
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+            <ArrowBack />
+          </IconButton>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            Returns
+          </Typography>
+        </Box>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>View As</InputLabel>

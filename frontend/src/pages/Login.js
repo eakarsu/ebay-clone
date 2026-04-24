@@ -184,62 +184,111 @@ const Login = () => {
           <>
             <Divider sx={{ my: 3 }}>
               <Typography variant="body2" color="text.secondary">
-                Quick Login (Demo)
+                Demo Accounts
               </Typography>
             </Divider>
 
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Click to auto-fill credentials:
+            <Box sx={{ bgcolor: 'grey.50', borderRadius: 2, p: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                Click to auto-fill (Password: password123)
               </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center', mb: 2 }}>
+
+              {/* Buyers */}
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                Buyers:
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                 <Button
                   size="small"
                   variant="outlined"
                   onClick={() => setFormData({ email: 'jane@example.com', password: 'password123' })}
+                  sx={{ textTransform: 'none' }}
                 >
-                  Buyer (Jane)
+                  Jane Doe (buyer_jane)
                 </Button>
                 <Button
                   size="small"
                   variant="outlined"
-                  color="success"
-                  onClick={() => setFormData({ email: 'techdeals@example.com', password: 'password123' })}
+                  onClick={() => setFormData({ email: 'bob@example.com', password: 'password123' })}
+                  sx={{ textTransform: 'none' }}
                 >
-                  Seller (TechDeals)
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="secondary"
-                  onClick={() => setFormData({ email: 'vintage@example.com', password: 'password123' })}
-                >
-                  Seller (Vintage)
+                  Bob Anderson (buyer_bob)
                 </Button>
               </Box>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
+
+              {/* Sellers */}
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                Sellers:
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 <Button
                   size="small"
-                  variant="outlined"
+                  variant="contained"
+                  color="primary"
+                  onClick={() => setFormData({ email: 'techdeals@example.com', password: 'password123' })}
+                  sx={{ textTransform: 'none' }}
+                >
+                  TechDeals (Electronics)
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="secondary"
+                  onClick={() => setFormData({ email: 'vintage@example.com', password: 'password123' })}
+                  sx={{ textTransform: 'none' }}
+                >
+                  VintageTreasures (Collectibles)
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
                   color="warning"
                   onClick={() => setFormData({ email: 'fashion@example.com', password: 'password123' })}
+                  sx={{ textTransform: 'none' }}
                 >
-                  Seller (Fashionista)
+                  Fashionista (Fashion)
                 </Button>
                 <Button
                   size="small"
-                  variant="outlined"
-                  color="info"
+                  variant="contained"
+                  color="success"
                   onClick={() => setFormData({ email: 'sports@example.com', password: 'password123' })}
+                  sx={{ textTransform: 'none' }}
                 >
-                  Seller (SportsGear)
+                  SportsGear (Sports)
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="info"
+                  onClick={() => setFormData({ email: 'home@example.com', password: 'password123' })}
+                  sx={{ textTransform: 'none' }}
+                >
+                  HomeEssentials (Home)
                 </Button>
                 <Button
                   size="small"
                   variant="outlined"
-                  onClick={() => setFormData({ email: 'home@example.com', password: 'password123' })}
+                  onClick={() => setFormData({ email: 'books@example.com', password: 'password123' })}
+                  sx={{ textTransform: 'none' }}
                 >
-                  Seller (Home)
+                  Bookworm (Books)
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setFormData({ email: 'games@example.com', password: 'password123' })}
+                  sx={{ textTransform: 'none' }}
+                >
+                  GameZone (Games)
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setFormData({ email: 'art@example.com', password: 'password123' })}
+                  sx={{ textTransform: 'none' }}
+                >
+                  ArtCollector (Art)
                 </Button>
               </Box>
             </Box>

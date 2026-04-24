@@ -1,0 +1,44 @@
+{
+  "common": {
+    "search": "Suchen",
+    "buy_now": "Sofort-Kauf",
+    "place_bid": "Bieten",
+    "add_to_cart": "In den Warenkorb",
+    "add_to_watchlist": "Zur Beobachtungsliste",
+    "sign_in": "Anmelden",
+    "register": "Registrieren",
+    "sell": "Verkaufen",
+    "cart": "Warenkorb",
+    "orders": "Bestellungen",
+    "language": "Sprache",
+    "currency": "Währung",
+    "loading": "Lädt...",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "continue": "Weiter"
+  },
+  "home": {
+    "hero_title": "Super Angebote für Millionen Artikel",
+    "trending": "Jetzt angesagt",
+    "recommended": "Für dich empfohlen"
+  },
+  "product": {
+    "current_bid": "Aktuelles Gebot",
+    "time_left": "Restzeit",
+    "bids": "Gebote",
+    "ending_soon": "Endet bald",
+    "shipping": "Versand",
+    "free_shipping": "Kostenloser Versand",
+    "condition": "Zustand"
+  },
+  "onboarding": {
+    "title": "Verkäufer werden",
+    "step_account": "Konto",
+    "step_identity": "Identität bestätigen",
+    "step_payout": "Auszahlungsmethode",
+    "step_tax": "Steuerinformationen",
+    "step_policies": "Versand & Rückgabe",
+    "step_first_listing": "Erste Anzeige erstellen",
+    "completed": "Fertig — los geht's!"
+  }
+}

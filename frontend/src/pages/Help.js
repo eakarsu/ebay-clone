@@ -146,6 +146,28 @@ const Help = () => {
   const { topic } = useParams();
   const [searchQuery, setSearchQuery] = React.useState('');
 
+  // Filter quickLinks based on search
+  const filteredQuickLinks = quickLinks.filter(link =>
+    link.label.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Filter helpTopics and their FAQs based on search
+  const filteredHelpTopics = Object.entries(helpTopics).reduce((acc, [key, topicData]) => {
+    const matchesTitle = topicData.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchingFaqs = topicData.faqs.filter(faq =>
+      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    if (matchesTitle || matchingFaqs.length > 0 || !searchQuery) {
+      acc[key] = {
+        ...topicData,
+        faqs: searchQuery ? matchingFaqs : topicData.faqs
+      };
+    }
+    return acc;
+  }, {});
+
   const currentTopic = topic ? helpTopics[topic] : null;
 
   if (currentTopic) {
@@ -206,7 +228,7 @@ const Help = () => {
         <Box sx={{ maxWidth: 600, mx: 'auto' }}>
           <TextField
             fullWidth
-            placeholder="Search for help..."
+            placeholder="Search for help... (live search)"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             InputProps={{
@@ -222,10 +244,10 @@ const Help = () => {
       </Box>
 
       <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-        Browse Help Topics
+        Browse Help Topics {searchQuery && `(${filteredQuickLinks.length} results)`}
       </Typography>
       <Grid container spacing={3} sx={{ mb: 6 }}>
-        {quickLinks.map((link) => (
+        {filteredQuickLinks.map((link) => (
           <Grid item xs={6} sm={4} md={3} key={link.label}>
             <Card
               component={Link}
@@ -249,10 +271,10 @@ const Help = () => {
       </Grid>
 
       <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-        Popular Questions
+        {searchQuery ? 'Matching Questions' : 'Popular Questions'} {searchQuery && `(${Object.keys(filteredHelpTopics).length} topics)`}
       </Typography>
       <Grid container spacing={3}>
-        {Object.entries(helpTopics).map(([key, topic]) => (
+        {Object.entries(filteredHelpTopics).map(([key, topic]) => (
           <Grid item xs={12} md={4} key={key}>
             <Paper sx={{ p: 3, height: '100%' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>

@@ -21,7 +21,9 @@ import {
   Rating,
   Alert,
   Snackbar,
+  IconButton,
 } from '@mui/material';
+import { ArrowBack } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { orderService, reviewService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -137,9 +139,14 @@ const Orders = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" sx={{ fontWeight: 600, mb: 4 }}>
-        My Orders
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+          <ArrowBack />
+        </IconButton>
+        <Typography variant="h4" sx={{ fontWeight: 600 }}>
+          My Orders
+        </Typography>
+      </Box>
 
       <Paper sx={{ mb: 3 }}>
         <Tabs value={tab} onChange={handleTabChange}>

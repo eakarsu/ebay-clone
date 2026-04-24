@@ -283,15 +283,16 @@ const getSalesAnalytics = async (req, res, next) => {
       [req.user.id]
     );
 
-    // Buyer locations (if shipping address available)
+    // Buyer locations (via shipping_address_id FK to addresses)
     const buyerLocations = await pool.query(
-      `SELECT o.shipping_state as state, COUNT(*) as orders
+      `SELECT a.state AS state, COUNT(*) AS orders
        FROM orders o
+       LEFT JOIN addresses a ON a.id = o.shipping_address_id
        WHERE o.seller_id = $1
          AND o.payment_status = 'completed'
-         AND o.shipping_state IS NOT NULL
+         AND a.state IS NOT NULL
          AND o.created_at >= NOW() - INTERVAL '${days} days'
-       GROUP BY o.shipping_state
+       GROUP BY a.state
        ORDER BY orders DESC
        LIMIT 10`,
       [req.user.id]
@@ -376,7 +377,7 @@ const getSellerReviews = async (req, res, next) => {
       `SELECT r.*, p.title as product_title, u.username as reviewer_name
        FROM reviews r
        JOIN products p ON r.product_id = p.id
-       JOIN users u ON r.user_id = u.id
+       JOIN users u ON r.reviewer_id = u.id
        WHERE p.seller_id = $1
        ORDER BY r.created_at DESC
        LIMIT $2 OFFSET $3`,
@@ -444,16 +445,17 @@ const getInventoryAlerts = async (req, res, next) => {
       [req.user.id]
     );
 
-    // Auctions ending soon (within 24 hours)
+    // Auctions ending soon (within 24 hours).
+    // Column is `current_price` (not current_bid) and `auction_end` (not auction_end_time).
     const endingAuctions = await pool.query(
-      `SELECT id, title, current_bid, auction_end_time
+      `SELECT id, title, current_price AS current_bid, auction_end AS auction_end_time
        FROM products
        WHERE seller_id = $1
          AND listing_type = 'auction'
          AND status = 'active'
-         AND auction_end_time <= NOW() + INTERVAL '24 hours'
-         AND auction_end_time > NOW()
-       ORDER BY auction_end_time ASC`,
+         AND auction_end <= NOW() + INTERVAL '24 hours'
+         AND auction_end > NOW()
+       ORDER BY auction_end ASC`,
       [req.user.id]
     );
 

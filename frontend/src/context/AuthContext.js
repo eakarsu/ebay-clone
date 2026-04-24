@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../services/api';
+import { joinUserRoom } from '../services/socket';
 
 const AuthContext = createContext(null);
 
@@ -20,10 +21,19 @@ export const AuthProvider = ({ children }) => {
     const savedUser = localStorage.getItem('user');
 
     if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
+      const parsed = JSON.parse(savedUser);
+      setUser(parsed);
     }
     setLoading(false);
   }, []);
+
+  // Join the user's socket room whenever the user changes so they receive
+  // personal events (price-drop notifications, etc).
+  useEffect(() => {
+    if (user?.id) {
+      try { joinUserRoom(user.id); } catch (e) {}
+    }
+  }, [user?.id]);
 
   const login = async (email, password, twoFactorCode = null) => {
     const payload = { email, password };
@@ -53,7 +63,12 @@ export const AuthProvider = ({ children }) => {
     return user;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await authService.logout();
+    } catch (err) {
+      // Continue with local logout even if backend call fails
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);

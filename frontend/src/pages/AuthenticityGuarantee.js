@@ -1,373 +1,434 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import {
-  Container,
-  Typography,
-  Box,
-  Grid,
-  Card,
-  CardContent,
-  CardMedia,
-  Button,
-  Paper,
-  Chip,
-  Stepper,
-  Step,
-  StepLabel,
-  StepContent,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Divider,
-  Tab,
-  Tabs,
+  Container, Typography, Box, Grid, Card, CardContent, Button, Paper, Chip,
+  Tab, Tabs, Stack, Alert, TextField, Dialog, DialogTitle, DialogContent,
+  DialogActions, CircularProgress, Table, TableHead, TableRow, TableCell,
+  TableBody, Divider, InputAdornment, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import {
-  VerifiedUser,
-  CheckCircle,
-  LocalShipping,
-  Search,
-  Shield,
-  ExpandMore,
-  Watch,
-  DiamondOutlined,
-  Checkroom,
-  SportsBasketball,
-  Category,
-  ArrowForward,
+  VerifiedUser, CheckCircle, Cancel, Search, Description,
+  Inventory, HelpOutline,
 } from '@mui/icons-material';
+import { authenticityService } from '../services/api';
 
-const categories = [
-  {
-    id: 'watches',
-    name: 'Watches',
-    icon: <Watch />,
-    description: 'Luxury watches over $2,000',
-    brands: ['Rolex', 'Omega', 'Patek Philippe', 'Audemars Piguet', 'Cartier', 'IWC'],
-    minValue: 2000,
-  },
-  {
-    id: 'sneakers',
-    name: 'Sneakers',
-    icon: <SportsBasketball />,
-    description: 'All sneakers over $100',
-    brands: ['Nike', 'Jordan', 'Adidas Yeezy', 'New Balance', 'Converse'],
-    minValue: 100,
-  },
-  {
-    id: 'handbags',
-    name: 'Handbags',
-    icon: <Checkroom />,
-    description: 'Designer handbags over $500',
-    brands: ['Louis Vuitton', 'Chanel', 'Gucci', 'Hermès', 'Prada', 'Dior'],
-    minValue: 500,
-  },
-  {
-    id: 'jewelry',
-    name: 'Fine Jewelry',
-    icon: <DiamondOutlined />,
-    description: 'Fine jewelry over $500',
-    brands: ['Tiffany & Co.', 'Cartier', 'Van Cleef & Arpels', 'Bvlgari', 'David Yurman'],
-    minValue: 500,
-  },
-];
-
-const steps = [
-  {
-    label: 'Purchase',
-    description: 'Buy an eligible item with the Authenticity Guarantee badge',
-  },
-  {
-    label: 'Seller Ships',
-    description: 'Seller ships the item to our authentication center',
-  },
-  {
-    label: 'Expert Inspection',
-    description: 'Our trained authenticators verify the item\'s authenticity',
-  },
-  {
-    label: 'Secure Packaging',
-    description: 'Authenticated items receive an official Authenticity Guarantee tag',
-  },
-  {
-    label: 'Delivery',
-    description: 'Your verified authentic item is shipped directly to you',
-  },
-];
-
-const faqs = [
-  {
-    question: 'What is Authenticity Guarantee?',
-    answer: 'Authenticity Guarantee is eBay\'s program that verifies the authenticity of eligible items before they reach the buyer. Items are inspected by trained authenticators at our dedicated authentication centers.',
-  },
-  {
-    question: 'Which items are eligible?',
-    answer: 'Eligible items include luxury watches over $2,000, sneakers over $100, designer handbags over $500, and fine jewelry over $500 from select brands.',
-  },
-  {
-    question: 'How much does authentication cost?',
-    answer: 'Authentication is free for buyers! The service is included at no additional cost for eligible items.',
-  },
-  {
-    question: 'What happens if an item fails authentication?',
-    answer: 'If an item fails authentication, it will be returned to the seller and you will receive a full refund. The seller may face account restrictions.',
-  },
-  {
-    question: 'How long does authentication take?',
-    answer: 'Authentication typically takes 2-4 business days after the item arrives at our authentication center. Total delivery time is usually 7-10 business days.',
-  },
-  {
-    question: 'Can I return an authenticated item?',
-    answer: 'Yes, authenticated items can be returned within 30 days. The item must be returned with the original Authenticity Guarantee tag attached.',
-  },
-];
-
-const AuthenticityGuarantee = () => {
-  const [selectedCategory, setSelectedCategory] = useState(0);
-  const [expandedFaq, setExpandedFaq] = useState(null);
-
-  return (
-    <Box>
-      {/* Hero Section */}
-      <Box
-        sx={{
-          bgcolor: 'grey.900',
-          color: 'white',
-          py: 10,
-          textAlign: 'center',
-        }}
-      >
-        <Container maxWidth="md">
-          <VerifiedUser sx={{ fontSize: 80, mb: 2, color: 'primary.light' }} />
-          <Typography variant="h2" sx={{ fontWeight: 700, mb: 2 }}>
-            Authenticity Guarantee
-          </Typography>
-          <Typography variant="h5" sx={{ opacity: 0.9, mb: 4 }}>
-            Shop with confidence. Every eligible item is verified authentic.
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Chip
-              icon={<CheckCircle />}
-              label="Free Authentication"
-              sx={{ bgcolor: 'white', color: 'grey.900' }}
-            />
-            <Chip
-              icon={<Shield />}
-              label="100% Authentic"
-              sx={{ bgcolor: 'white', color: 'grey.900' }}
-            />
-            <Chip
-              icon={<LocalShipping />}
-              label="Secure Shipping"
-              sx={{ bgcolor: 'white', color: 'grey.900' }}
-            />
-          </Box>
-        </Container>
-      </Box>
-
-      {/* How It Works */}
-      <Container maxWidth="lg" sx={{ py: 8 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, mb: 4, textAlign: 'center' }}>
-          How It Works
-        </Typography>
-        <Stepper orientation="vertical">
-          {steps.map((step, index) => (
-            <Step key={step.label} active={true}>
-              <StepLabel>
-                <Typography variant="h6">{step.label}</Typography>
-              </StepLabel>
-              <StepContent>
-                <Typography color="text.secondary">{step.description}</Typography>
-              </StepContent>
-            </Step>
-          ))}
-        </Stepper>
-      </Container>
-
-      {/* Categories */}
-      <Box sx={{ bgcolor: 'grey.50', py: 8 }}>
-        <Container maxWidth="lg">
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 4, textAlign: 'center' }}>
-            Eligible Categories
-          </Typography>
-          <Tabs
-            value={selectedCategory}
-            onChange={(e, v) => setSelectedCategory(v)}
-            centered
-            sx={{ mb: 4 }}
-          >
-            {categories.map((cat) => (
-              <Tab key={cat.id} icon={cat.icon} label={cat.name} />
-            ))}
-          </Tabs>
-
-          <Paper sx={{ p: 4 }}>
-            <Grid container spacing={4} alignItems="center">
-              <Grid item xs={12} md={6}>
-                <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
-                  {categories[selectedCategory].name}
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                  {categories[selectedCategory].description}
-                </Typography>
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle2" sx={{ mb: 1 }}>Minimum Value</Typography>
-                  <Chip
-                    label={`$${categories[selectedCategory].minValue.toLocaleString()}+`}
-                    color="primary"
-                  />
-                </Box>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Eligible Brands</Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {categories[selectedCategory].brands.map((brand) => (
-                    <Chip key={brand} label={brand} variant="outlined" size="small" />
-                  ))}
-                </Box>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Box
-                  sx={{
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    p: 4,
-                    borderRadius: 2,
-                    textAlign: 'center',
-                  }}
-                >
-                  <VerifiedUser sx={{ fontSize: 64, mb: 2 }} />
-                  <Typography variant="h6" sx={{ mb: 2 }}>
-                    Look for the Badge
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Eligible items display the Authenticity Guarantee badge on the listing page
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
-          </Paper>
-        </Container>
-      </Box>
-
-      {/* Benefits */}
-      <Container maxWidth="lg" sx={{ py: 8 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, mb: 4, textAlign: 'center' }}>
-          Benefits
-        </Typography>
-        <Grid container spacing={4}>
-          <Grid item xs={12} md={4}>
-            <Card sx={{ height: '100%', textAlign: 'center' }}>
-              <CardContent sx={{ p: 4 }}>
-                <Search sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                  Expert Inspection
-                </Typography>
-                <Typography color="text.secondary">
-                  Every item is carefully examined by trained authenticators using industry-leading
-                  verification methods and technology.
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card sx={{ height: '100%', textAlign: 'center' }}>
-              <CardContent sx={{ p: 4 }}>
-                <Shield sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                  Money Back Guarantee
-                </Typography>
-                <Typography color="text.secondary">
-                  If your item doesn't pass authentication, you'll receive a full refund.
-                  Shop with complete confidence.
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card sx={{ height: '100%', textAlign: 'center' }}>
-              <CardContent sx={{ p: 4 }}>
-                <LocalShipping sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                  Secure Delivery
-                </Typography>
-                <Typography color="text.secondary">
-                  Authenticated items are securely packaged with tamper-evident tags and
-                  shipped with full insurance.
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </Container>
-
-      {/* FAQs */}
-      <Box sx={{ bgcolor: 'grey.50', py: 8 }}>
-        <Container maxWidth="md">
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 4, textAlign: 'center' }}>
-            Frequently Asked Questions
-          </Typography>
-          {faqs.map((faq, index) => (
-            <Accordion
-              key={index}
-              expanded={expandedFaq === index}
-              onChange={() => setExpandedFaq(expandedFaq === index ? null : index)}
-            >
-              <AccordionSummary expandIcon={<ExpandMore />}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                  {faq.question}
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Typography color="text.secondary">{faq.answer}</Typography>
-              </AccordionDetails>
-            </Accordion>
-          ))}
-        </Container>
-      </Box>
-
-      {/* CTA */}
-      <Container maxWidth="md" sx={{ py: 8, textAlign: 'center' }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, mb: 2 }}>
-          Ready to Shop Authentic?
-        </Typography>
-        <Typography color="text.secondary" sx={{ mb: 4 }}>
-          Browse our selection of verified authentic items
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Button
-            variant="contained"
-            size="large"
-            component={Link}
-            to="/search?authenticity=true&category=watches"
-            endIcon={<ArrowForward />}
-          >
-            Shop Watches
-          </Button>
-          <Button
-            variant="outlined"
-            size="large"
-            component={Link}
-            to="/search?authenticity=true&category=sneakers"
-            endIcon={<ArrowForward />}
-          >
-            Shop Sneakers
-          </Button>
-          <Button
-            variant="outlined"
-            size="large"
-            component={Link}
-            to="/search?authenticity=true&category=handbags"
-            endIcon={<ArrowForward />}
-          >
-            Shop Handbags
-          </Button>
-        </Box>
-      </Container>
-    </Box>
-  );
+const STATUS_COLORS = {
+  pending: 'default',
+  inspecting: 'info',
+  authenticated: 'success',
+  rejected: 'error',
 };
 
-export default AuthenticityGuarantee;
+export default function AuthenticityGuarantee() {
+  const [tab, setTab] = useState(0);
+
+  // Categories — shown on overview tab + referenced for the "is this required?" tool.
+  const [categories, setCategories] = useState([]);
+  const [catLoading, setCatLoading] = useState(true);
+
+  // My requests
+  const [viewAs, setViewAs] = useState('buyer');
+  const [requests, setRequests] = useState([]);
+  const [reqLoading, setReqLoading] = useState(false);
+  const [reqError, setReqError] = useState('');
+
+  // Verify certificate
+  const [verifyMode, setVerifyMode] = useState('certificate'); // certificate | nfc
+  const [verifyInput, setVerifyInput] = useState('');
+  const [verifyResult, setVerifyResult] = useState(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState('');
+
+  // Is-required checker
+  const [reqCheckForm, setReqCheckForm] = useState({ categoryName: '', itemValue: '' });
+  const [reqCheckResult, setReqCheckResult] = useState(null);
+  const [reqChecking, setReqChecking] = useState(false);
+
+  // Detail dialog
+  const [detail, setDetail] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await authenticityService.listCategories();
+        setCategories(Array.isArray(data) ? data : []);
+      } catch { /* non-fatal */ }
+      finally { setCatLoading(false); }
+    })();
+  }, []);
+
+  const loadRequests = React.useCallback(async () => {
+    setReqLoading(true);
+    setReqError('');
+    try {
+      const { data } = await authenticityService.listMine(viewAs);
+      setRequests(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setReqError(e.response?.data?.error || 'Failed to load your requests');
+    } finally {
+      setReqLoading(false);
+    }
+  }, [viewAs]);
+
+  useEffect(() => { if (tab === 1) loadRequests(); }, [tab, loadRequests]);
+
+  const verify = async () => {
+    const v = verifyInput.trim();
+    if (!v) return;
+    setVerifying(true);
+    setVerifyError('');
+    setVerifyResult(null);
+    try {
+      const params = verifyMode === 'certificate' ? { certificateNumber: v } : { nfcTagId: v };
+      const { data } = await authenticityService.verify(params);
+      setVerifyResult(data);
+    } catch (e) {
+      setVerifyError(e.response?.data?.error || 'Verification failed');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const checkRequired = async () => {
+    if (!reqCheckForm.categoryName || !reqCheckForm.itemValue) return;
+    setReqChecking(true);
+    setReqCheckResult(null);
+    try {
+      const { data } = await authenticityService.checkRequired(
+        reqCheckForm.categoryName,
+        Number(reqCheckForm.itemValue),
+      );
+      setReqCheckResult(data);
+    } catch (e) {
+      setReqCheckResult({ error: e.response?.data?.error || 'Check failed' });
+    } finally {
+      setReqChecking(false);
+    }
+  };
+
+  const viewDetail = async (id) => {
+    try {
+      const { data } = await authenticityService.getRequest(id);
+      setDetail(data);
+    } catch (e) {
+      setReqError(e.response?.data?.error || 'Failed to load detail');
+    }
+  };
+
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+        <VerifiedUser color="primary" fontSize="large" />
+        <Typography variant="h4" fontWeight={700}>Authenticity Guarantee</Typography>
+      </Stack>
+      <Typography color="text.secondary" mb={3}>
+        Every eligible item is inspected by an expert before it ships. Scan the NFC tag or
+        enter a certificate number to verify at any time.
+      </Typography>
+
+      <Paper sx={{ mb: 3 }}>
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable">
+          <Tab icon={<Inventory />} iconPosition="start" label="Overview" />
+          <Tab icon={<Description />} iconPosition="start" label="My requests" />
+          <Tab icon={<Search />} iconPosition="start" label="Verify certificate" />
+          <Tab icon={<HelpOutline />} iconPosition="start" label="Is this required?" />
+        </Tabs>
+      </Paper>
+
+      {/* OVERVIEW */}
+      {tab === 0 && (
+        <>
+          <Paper sx={{ p: 3, mb: 3, bgcolor: 'primary.50' }}>
+            <Typography variant="h6" fontWeight={600} mb={2}>How it works</Typography>
+            <Grid container spacing={2}>
+              {[
+                ['Seller ships to us', 'The item goes to our authentication center first, not directly to you.'],
+                ['Expert inspection', 'Verified by a category specialist against brand-specific markers.'],
+                ['Certificate + NFC tag', 'Pass → item is tagged and certified. Fail → full refund.'],
+                ['You receive the item', 'Confirmed genuine, with a scannable certificate attached.'],
+              ].map(([title, body], i) => (
+                <Grid item xs={12} md={3} key={i}>
+                  <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                    <Chip label={i + 1} color="primary" size="small" />
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
+                      <Typography variant="body2" color="text.secondary">{body}</Typography>
+                    </Box>
+                  </Stack>
+                </Grid>
+              ))}
+            </Grid>
+          </Paper>
+
+          <Typography variant="h6" fontWeight={600} mb={2}>Eligible categories</Typography>
+          {catLoading ? (
+            <CircularProgress />
+          ) : categories.length === 0 ? (
+            <Alert severity="info">
+              No categories currently enrolled in Authenticity Guarantee.
+            </Alert>
+          ) : (
+            <Grid container spacing={2}>
+              {categories.map((c) => (
+                <Grid item xs={12} sm={6} md={4} key={c.id}>
+                  <Card variant="outlined" sx={{ height: '100%' }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Typography variant="subtitle1" fontWeight={600}>
+                          {c.category_name}
+                        </Typography>
+                        {c.is_mandatory && (
+                          <Chip size="small" color="warning" label="Mandatory" />
+                        )}
+                      </Stack>
+                      {c.min_value_threshold != null && (
+                        <Typography variant="body2" color="text.secondary">
+                          Kicks in at ${Number(c.min_value_threshold).toLocaleString()}+
+                        </Typography>
+                      )}
+                      {c.description && (
+                        <Typography variant="body2" sx={{ mt: 1 }}>{c.description}</Typography>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </>
+      )}
+
+      {/* MY REQUESTS */}
+      {tab === 1 && (
+        <>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+            <ToggleButtonGroup
+              size="small" exclusive value={viewAs}
+              onChange={(_, v) => v && setViewAs(v)}
+            >
+              <ToggleButton value="buyer">As buyer</ToggleButton>
+              <ToggleButton value="seller">As seller</ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
+
+          {reqError && <Alert severity="error" sx={{ mb: 2 }}>{reqError}</Alert>}
+
+          <Paper>
+            {reqLoading ? (
+              <Box sx={{ textAlign: 'center', py: 6 }}><CircularProgress /></Box>
+            ) : requests.length === 0 ? (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <Typography color="text.secondary">
+                  You have no authenticity requests {viewAs === 'buyer' ? 'as a buyer' : 'as a seller'}.
+                </Typography>
+              </Box>
+            ) : (
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Item</TableCell>
+                    <TableCell>Order</TableCell>
+                    <TableCell>Brand</TableCell>
+                    <TableCell align="right">Value</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Certificate</TableCell>
+                    <TableCell align="right">Details</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {requests.map((r) => (
+                    <TableRow key={r.id} hover>
+                      <TableCell sx={{ maxWidth: 280 }}>
+                        <Typography variant="body2" noWrap title={r.product_title}>
+                          {r.product_title}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace' }}>{r.order_number}</TableCell>
+                      <TableCell>{r.brand || '—'}</TableCell>
+                      <TableCell align="right">
+                        ${Number(r.declared_value || 0).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <Chip size="small" label={r.status} color={STATUS_COLORS[r.status] || 'default'} />
+                      </TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+                        {r.certificate_number || '—'}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button size="small" onClick={() => viewDetail(r.id)}>View</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </Paper>
+        </>
+      )}
+
+      {/* VERIFY CERTIFICATE */}
+      {tab === 2 && (
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="subtitle1" fontWeight={600} mb={2}>
+            Verify an authenticity certificate
+          </Typography>
+          <ToggleButtonGroup
+            size="small" exclusive value={verifyMode}
+            onChange={(_, v) => v && setVerifyMode(v)}
+            sx={{ mb: 2 }}
+          >
+            <ToggleButton value="certificate">Certificate #</ToggleButton>
+            <ToggleButton value="nfc">NFC tag</ToggleButton>
+          </ToggleButtonGroup>
+
+          <Stack direction="row" spacing={1}>
+            <TextField
+              fullWidth
+              value={verifyInput}
+              onChange={(e) => setVerifyInput(e.target.value)}
+              placeholder={verifyMode === 'certificate' ? 'AG-1234567890-ABCDEF' : '8-char tag ID'}
+              InputProps={{ sx: { fontFamily: 'monospace' } }}
+              onKeyDown={(e) => { if (e.key === 'Enter') verify(); }}
+            />
+            <Button
+              variant="contained"
+              onClick={verify}
+              disabled={verifying || !verifyInput.trim()}
+              startIcon={<Search />}
+              sx={{ minWidth: 120 }}
+            >
+              {verifying ? '…' : 'Verify'}
+            </Button>
+          </Stack>
+
+          {verifyError && <Alert severity="error" sx={{ mt: 2 }}>{verifyError}</Alert>}
+
+          {verifyResult && (
+            <Box sx={{ mt: 3 }}>
+              {verifyResult.verified ? (
+                <Alert severity="success" icon={<CheckCircle />}>
+                  <Typography variant="subtitle2">{verifyResult.message}</Typography>
+                  {verifyResult.item && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="body2">
+                        <strong>{verifyResult.item.brand} {verifyResult.item.model}</strong> — {verifyResult.item.productTitle}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Category: {verifyResult.item.category} ·
+                        Authenticated: {new Date(verifyResult.item.authenticatedDate).toLocaleDateString()} ·
+                        Cert: <span style={{ fontFamily: 'monospace' }}>{verifyResult.item.certificateNumber}</span>
+                      </Typography>
+                    </Box>
+                  )}
+                </Alert>
+              ) : (
+                <Alert severity="error" icon={<Cancel />}>
+                  {verifyResult.message || 'Not verified'}
+                </Alert>
+              )}
+            </Box>
+          )}
+        </Paper>
+      )}
+
+      {/* IS THIS REQUIRED? */}
+      {tab === 3 && (
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="subtitle1" fontWeight={600} mb={1}>
+            Is Authenticity Guarantee required for my item?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" mb={3}>
+            Some categories require verification for all items; others kick in above a price threshold.
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth label="Category name"
+                value={reqCheckForm.categoryName}
+                onChange={(e) => setReqCheckForm({ ...reqCheckForm, categoryName: e.target.value })}
+                placeholder="e.g. Sneakers, Watches, Handbags"
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth label="Item value" type="number"
+                value={reqCheckForm.itemValue}
+                onChange={(e) => setReqCheckForm({ ...reqCheckForm, itemValue: e.target.value })}
+                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <Button
+                fullWidth variant="contained"
+                onClick={checkRequired}
+                disabled={reqChecking || !reqCheckForm.categoryName || !reqCheckForm.itemValue}
+                sx={{ height: '100%' }}
+              >
+                Check
+              </Button>
+            </Grid>
+          </Grid>
+          {reqCheckResult && (
+            <Alert
+              severity={reqCheckResult.error ? 'error' : reqCheckResult.required ? 'info' : 'success'}
+              sx={{ mt: 3 }}
+            >
+              {reqCheckResult.error || reqCheckResult.message}
+              {reqCheckResult.category?.min_value_threshold != null && (
+                <Box sx={{ mt: 1 }}>
+                  Threshold for this category: ${Number(reqCheckResult.category.min_value_threshold).toLocaleString()}
+                </Box>
+              )}
+            </Alert>
+          )}
+        </Paper>
+      )}
+
+      {/* Detail dialog */}
+      <Dialog open={!!detail} onClose={() => setDetail(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Authenticity request details</DialogTitle>
+        <DialogContent dividers>
+          {detail && (
+            <Stack spacing={1.5}>
+              <Row k="Product" v={detail.product_title} />
+              <Row k="Order #" v={detail.order_number} mono />
+              <Row k="Brand / Model" v={`${detail.brand || '—'} ${detail.model || ''}`} />
+              <Row k="Declared value" v={`$${Number(detail.declared_value || 0).toLocaleString()}`} />
+              <Row k="Status" v={<Chip size="small" label={detail.status} color={STATUS_COLORS[detail.status] || 'default'} />} />
+              {detail.is_authentic != null && (
+                <Row k="Authentic?" v={detail.is_authentic ? 'Yes' : 'No'} />
+              )}
+              {detail.authenticity_score != null && (
+                <Row k="Score" v={`${detail.authenticity_score}%`} />
+              )}
+              {detail.certificate_number && <Row k="Certificate" v={detail.certificate_number} mono />}
+              {detail.nfc_tag_id && <Row k="NFC tag" v={detail.nfc_tag_id} mono />}
+              {detail.inspection_notes && (
+                <>
+                  <Divider />
+                  <Typography variant="caption" color="text.secondary">Inspector notes</Typography>
+                  <Typography variant="body2">{detail.inspection_notes}</Typography>
+                </>
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetail(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
+  );
+}
+
+function Row({ k, v, mono }) {
+  return (
+    <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <Typography variant="caption" color="text.secondary">{k}</Typography>
+      {typeof v === 'string' ? (
+        <Typography variant="body2" sx={{ fontFamily: mono ? 'monospace' : undefined }}>
+          {v || '—'}
+        </Typography>
+      ) : v}
+    </Stack>
+  );
+}

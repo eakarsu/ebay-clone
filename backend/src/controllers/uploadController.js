@@ -37,30 +37,30 @@ const upload = multer({
   },
 });
 
-// Process and save image
+// Process and save image in 4 sizes (thumb/small/medium/large), all WebP.
+// Keeps legacy keys (image = large, thumbnail = thumb) for backward compatibility.
+const SIZE_VARIANTS = [
+  { key: 'thumb',  px: 160,  q: 80, fit: 'cover'  },
+  { key: 'small',  px: 400,  q: 82, fit: 'inside' },
+  { key: 'medium', px: 800,  px2: 800, q: 84, fit: 'inside' },
+  { key: 'large',  px: 1600, q: 85, fit: 'inside' },
+];
+
 const processImage = async (buffer, filename) => {
-  const imageFilename = `${filename}.webp`;
-  const thumbnailFilename = `${filename}_thumb.webp`;
-
-  const imagePath = path.join(imagesDir, imageFilename);
-  const thumbnailPath = path.join(thumbnailsDir, thumbnailFilename);
-
-  // Process main image (max 1200px width)
-  await sharp(buffer)
-    .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 85 })
-    .toFile(imagePath);
-
-  // Create thumbnail (300px)
-  await sharp(buffer)
-    .resize(300, 300, { fit: 'cover' })
-    .webp({ quality: 80 })
-    .toFile(thumbnailPath);
-
-  return {
-    image: `/uploads/images/${imageFilename}`,
-    thumbnail: `/uploads/thumbnails/${thumbnailFilename}`,
-  };
+  const paths = {};
+  for (const v of SIZE_VARIANTS) {
+    const name = `${filename}.${v.key}.webp`;
+    const abs = path.join(imagesDir, name);
+    await sharp(buffer)
+      .resize(v.px, v.px, { fit: v.fit, withoutEnlargement: true })
+      .webp({ quality: v.q })
+      .toFile(abs);
+    paths[v.key] = `/uploads/images/${name}`;
+  }
+  // Legacy aliases
+  paths.image = paths.large;
+  paths.thumbnail = paths.thumb;
+  return paths;
 };
 
 // Upload single image

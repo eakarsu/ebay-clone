@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
   Toolbar,
@@ -42,21 +42,43 @@ import {
   TrendingUp as PerformanceIcon,
   Public as GlobalIcon,
   LocationOn as PickupIcon,
+  AutoAwesome as AIIcon,
+  LiveTv as LiveIcon,
+  Security as VaultIcon,
+  Group as TeamIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { getImageUrl } from '../../services/api';
+import LanguageSwitcher from '../common/LanguageSwitcher';
 
 const Header = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
   const { cart } = useCart();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [anchorEl, setAnchorEl] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Live search with debounce - navigates to search page as user types
+  useEffect(() => {
+    // Don't trigger on empty query or if already on search page with same query
+    if (!searchQuery.trim()) return;
+
+    const params = new URLSearchParams(location.search);
+    const currentQuery = params.get('q');
+    if (location.pathname === '/search' && currentQuery === searchQuery) return;
+
+    const debounceTimer = setTimeout(() => {
+      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -73,8 +95,8 @@ const Header = () => {
     setAnchorEl(null);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     handleCloseMenu();
     navigate('/');
   };
@@ -99,8 +121,16 @@ const Header = () => {
               <Link to="/deals" style={{ color: 'inherit', textDecoration: 'none' }}>
                 <Typography variant="body2">Daily Deals</Typography>
               </Link>
+              <Link to="/live" style={{ color: '#e53238', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <LiveIcon sx={{ fontSize: 14 }} />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>eBay Live</Typography>
+              </Link>
               <Link to="/help" style={{ color: 'inherit', textDecoration: 'none' }}>
                 <Typography variant="body2">Help & Contact</Typography>
+              </Link>
+              <Link to="/ai-features" style={{ color: '#3665f3', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <AIIcon sx={{ fontSize: 14 }} />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>AI Features</Typography>
               </Link>
             </Box>
             <Box sx={{ display: 'flex', gap: 2 }}>
@@ -174,7 +204,7 @@ const Header = () => {
               }}
             >
               <InputBase
-                placeholder="Search for anything"
+                placeholder="Search for anything... (live)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 sx={{ flex: 1, px: 2, py: 1 }}
@@ -196,6 +226,7 @@ const Header = () => {
 
             {/* Actions */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <LanguageSwitcher />
               {user ? (
                 <>
                   <IconButton component={Link} to="/messages">
@@ -243,6 +274,10 @@ const Header = () => {
                       <ListItemIcon><DealsIcon /></ListItemIcon>
                       <ListItemText>My Offers</ListItemText>
                     </MenuItem>
+                    <MenuItem component={Link} to="/my-coupons" onClick={handleCloseMenu}>
+                      <ListItemIcon><DealsIcon /></ListItemIcon>
+                      <ListItemText>My Coupons</ListItemText>
+                    </MenuItem>
                     <MenuItem component={Link} to="/my-bids" onClick={handleCloseMenu}>
                       <ListItemIcon><BidsIcon /></ListItemIcon>
                       <ListItemText>My Bids</ListItemText>
@@ -250,6 +285,10 @@ const Header = () => {
                     <MenuItem component={Link} to="/membership" onClick={handleCloseMenu}>
                       <ListItemIcon><MembershipIcon /></ListItemIcon>
                       <ListItemText>Membership</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/vault" onClick={handleCloseMenu}>
+                      <ListItemIcon><VaultIcon /></ListItemIcon>
+                      <ListItemText>Vault</ListItemText>
                     </MenuItem>
                     {user.isSeller && (
                       <>
@@ -262,6 +301,10 @@ const Header = () => {
                           <ListItemIcon><InventoryIcon /></ListItemIcon>
                           <ListItemText>My Listings</ListItemText>
                         </MenuItem>
+                        <MenuItem component={Link} to="/seller/coupons" onClick={handleCloseMenu}>
+                          <ListItemIcon><DealsIcon /></ListItemIcon>
+                          <ListItemText>Coupon Codes</ListItemText>
+                        </MenuItem>
                         <MenuItem component={Link} to="/orders?type=sales" onClick={handleCloseMenu}>
                           <ListItemIcon><OrdersIcon /></ListItemIcon>
                           <ListItemText>Sales</ListItemText>
@@ -273,6 +316,10 @@ const Header = () => {
                         <MenuItem component={Link} to="/gsp" onClick={handleCloseMenu}>
                           <ListItemIcon><GlobalIcon /></ListItemIcon>
                           <ListItemText>Global Shipping</ListItemText>
+                        </MenuItem>
+                        <MenuItem component={Link} to="/team" onClick={handleCloseMenu}>
+                          <ListItemIcon><TeamIcon /></ListItemIcon>
+                          <ListItemText>Team Access</ListItemText>
                         </MenuItem>
                       </>
                     )}
@@ -327,9 +374,17 @@ const Header = () => {
               <ListItemIcon><DealsIcon /></ListItemIcon>
               <ListItemText primary="Daily Deals" />
             </ListItem>
+            <ListItem button component={Link} to="/live" onClick={() => setMobileMenuOpen(false)}>
+              <ListItemIcon><LiveIcon sx={{ color: '#e53238' }} /></ListItemIcon>
+              <ListItemText primary="eBay Live" primaryTypographyProps={{ sx: { color: '#e53238', fontWeight: 600 } }} />
+            </ListItem>
             <ListItem button component={Link} to="/sell" onClick={() => setMobileMenuOpen(false)}>
               <ListItemIcon><SellIcon /></ListItemIcon>
               <ListItemText primary="Sell" />
+            </ListItem>
+            <ListItem button component={Link} to="/vault" onClick={() => setMobileMenuOpen(false)}>
+              <ListItemIcon><VaultIcon /></ListItemIcon>
+              <ListItemText primary="Vault" />
             </ListItem>
             <Divider />
             <ListItem button component={Link} to="/messages" onClick={() => setMobileMenuOpen(false)}>
@@ -351,6 +406,10 @@ const Header = () => {
             <ListItem button component={Link} to="/local-pickup" onClick={() => setMobileMenuOpen(false)}>
               <ListItemIcon><PickupIcon /></ListItemIcon>
               <ListItemText primary="Local Pickup" />
+            </ListItem>
+            <ListItem button component={Link} to="/ai-features" onClick={() => setMobileMenuOpen(false)}>
+              <ListItemIcon><AIIcon color="primary" /></ListItemIcon>
+              <ListItemText primary="AI Features" />
             </ListItem>
             <Divider />
             <ListItem button component={Link} to="/help" onClick={() => setMobileMenuOpen(false)}>

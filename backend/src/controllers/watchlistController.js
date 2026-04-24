@@ -81,9 +81,12 @@ const addToWatchlist = async (req, res, next) => {
       return res.status(400).json({ error: 'You cannot watch your own product' });
     }
 
-    // Add to watchlist
+    // Add to watchlist, snapshotting current price so we can detect future drops.
     await pool.query(
-      'INSERT INTO watchlist (user_id, product_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      `INSERT INTO watchlist (user_id, product_id, price_at_watch)
+       VALUES ($1, $2, (SELECT COALESCE(current_price, buy_now_price, starting_price)
+                          FROM products WHERE id = $2))
+       ON CONFLICT DO NOTHING`,
       [req.user.id, productId]
     );
 

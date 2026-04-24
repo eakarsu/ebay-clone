@@ -125,9 +125,9 @@ const RecentlyViewed = () => {
         >
           {items.map((item) => (
             <Card
-              key={item.id}
+              key={item.id || item.product_id}
               component={Link}
-              to={`/product/${item.productId || item.id}`}
+              to={`/product/${item.product_id || item.productId || item.id}`}
               sx={{
                 minWidth: 180,
                 maxWidth: 180,
@@ -138,8 +138,8 @@ const RecentlyViewed = () => {
               <CardMedia
                 component="img"
                 height="140"
-                image={item.product?.images?.[0]?.url || item.images?.[0]?.url || 'https://via.placeholder.com/180'}
-                alt={item.product?.title || item.title}
+                image={item.image || item.product?.image || 'https://via.placeholder.com/180?text=No+Image'}
+                alt={item.title || item.product?.title}
                 sx={{ objectFit: 'contain', bgcolor: 'grey.50', p: 1 }}
               />
               <CardContent sx={{ p: 1.5 }}>
@@ -156,10 +156,10 @@ const RecentlyViewed = () => {
                     minHeight: 40,
                   }}
                 >
-                  {item.product?.title || item.title}
+                  {item.title || item.product?.title}
                 </Typography>
                 <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                  ${(item.product?.buyNowPrice || item.buyNowPrice)?.toFixed(2)}
+                  ${parseFloat(item.buy_now_price || item.current_price || item.buyNowPrice || 0).toFixed(2)}
                 </Typography>
               </CardContent>
             </Card>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Container,
@@ -9,183 +9,219 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Slider,
-  Checkbox,
-  FormControlLabel,
-  Paper,
   Pagination,
-  Chip,
   Button,
-  Collapse,
   useMediaQuery,
   useTheme,
-  TextField,
-  Divider,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Rating,
+  Drawer,
+  IconButton,
+  Badge,
 } from '@mui/material';
-import { FilterList, ExpandMore, ExpandLess, LocationOn, LocalShipping, Star, Verified } from '@mui/icons-material';
-import { productService, categoryService } from '../services/api';
+import { FilterList, Close } from '@mui/icons-material';
+import { productService } from '../services/api';
 import ProductGrid from '../components/Products/ProductGrid';
+import FilterSidebar from '../components/Search/FilterSidebar';
 
 const Search = () => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm')); // Changed from 'md' to 'sm' to show filters on tablets
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [filterOptions, setFilterOptions] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [filtersLoading, setFiltersLoading] = useState(true);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [pagination, setPagination] = useState({
     page: parseInt(searchParams.get('page')) || 1,
     pages: 1,
-    total: 0
-  });
-  const [showFilters, setShowFilters] = useState(!isMobile);
-
-  // Filters
-  const [filters, setFilters] = useState({
-    search: searchParams.get('q') || '',
-    category: searchParams.get('category') || '',
-    condition: searchParams.get('condition') || '',
-    listingType: searchParams.get('listingType') || '',
-    minPrice: searchParams.get('minPrice') || '',
-    maxPrice: searchParams.get('maxPrice') || '',
-    freeShipping: searchParams.get('freeShipping') === 'true',
-    sortBy: searchParams.get('sortBy') || 'created_at',
-    sortOrder: searchParams.get('sortOrder') || 'desc',
-    // New filters
-    location: searchParams.get('location') || '',
-    state: searchParams.get('state') || '',
-    country: searchParams.get('country') || 'US',
-    brand: searchParams.get('brand') || '',
-    acceptsOffers: searchParams.get('acceptsOffers') === 'true',
-    freeReturns: searchParams.get('freeReturns') === 'true',
-    topRatedSeller: searchParams.get('topRatedSeller') === 'true',
-    minSellerRating: searchParams.get('minSellerRating') || '',
-    endingWithin: searchParams.get('endingWithin') || '',
-    localPickup: searchParams.get('localPickup') === 'true',
-    featured: searchParams.get('featured') === 'true',
+    total: 0,
   });
 
-  const [priceRange, setPriceRange] = useState([0, 5000]);
+  // Parse URL params into filter state
+  const parseFiltersFromURL = useCallback(() => {
+    return {
+      search: searchParams.get('q') || '',
+      category: searchParams.get('category') || '',
+      subcategory: searchParams.get('subcategory') || '',
+      condition: searchParams.get('condition')?.split(',').filter(Boolean) || [],
+      listingType: searchParams.get('listingType') || '',
+      minPrice: searchParams.get('minPrice') || '',
+      maxPrice: searchParams.get('maxPrice') || '',
+      brand: searchParams.get('brand')?.split(',').filter(Boolean) || [],
+      color: searchParams.get('color')?.split(',').filter(Boolean) || [],
+      size: searchParams.get('size')?.split(',').filter(Boolean) || [],
+      freeShipping: searchParams.get('freeShipping') === 'true',
+      localPickup: searchParams.get('localPickup') === 'true',
+      acceptsOffers: searchParams.get('acceptsOffers') === 'true',
+      freeReturns: searchParams.get('freeReturns') === 'true',
+      sortBy: searchParams.get('sortBy') || (searchParams.get('q') ? 'relevance' : 'created_at'),
+      sortOrder: searchParams.get('sortOrder') || 'desc',
+    };
+  }, [searchParams]);
 
+  const [filters, setFilters] = useState(parseFiltersFromURL);
+
+  // Sync filters with URL when URL changes (e.g., from header search)
   useEffect(() => {
-    categoryService.getAll().then((res) => setCategories(res.data.categories));
-  }, []);
+    const newFilters = parseFiltersFromURL();
+    setFilters(newFilters);
+  }, [searchParams, parseFiltersFromURL]);
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setLoading(true);
-      try {
-        const params = {
-          page: pagination.page,
-          limit: 20,
-          search: filters.search || undefined,
-          category: filters.category || undefined,
-          condition: filters.condition || undefined,
-          listingType: filters.listingType || undefined,
-          minPrice: filters.minPrice || undefined,
-          maxPrice: filters.maxPrice || undefined,
-          sortBy: filters.sortBy,
-          sortOrder: filters.sortOrder,
-          // New filters
-          location: filters.location || undefined,
-          state: filters.state || undefined,
-          country: filters.country !== 'US' ? filters.country : undefined,
-          brand: filters.brand || undefined,
-          acceptsOffers: filters.acceptsOffers ? 'true' : undefined,
-          freeReturns: filters.freeReturns ? 'true' : undefined,
-          freeShipping: filters.freeShipping ? 'true' : undefined,
-          topRatedSeller: filters.topRatedSeller ? 'true' : undefined,
-          minSellerRating: filters.minSellerRating || undefined,
-          endingWithin: filters.endingWithin || undefined,
-          localPickup: filters.localPickup ? 'true' : undefined,
-          featured: filters.featured ? 'true' : undefined,
-        };
-
-        Object.keys(params).forEach((key) => params[key] === undefined && delete params[key]);
-
-        const response = await productService.getAll(params);
-        setProducts(response.data.products);
-        setPagination(response.data.pagination);
-      } catch (error) {
-        console.error('Error fetching products:', error);
-      } finally {
-        setLoading(false);
-      }
+  // Build API params from filters
+  const buildApiParams = useCallback((filterState, page = 1) => {
+    const params = {
+      page,
+      limit: 20,
     };
 
-    fetchProducts();
-  }, [filters, pagination.page]);
+    if (filterState.search) params.search = filterState.search;
+    if (filterState.category) params.category = filterState.category;
+    if (filterState.subcategory) params.subcategory = filterState.subcategory;
+    if (filterState.condition?.length > 0) params.condition = filterState.condition.join(',');
+    if (filterState.listingType) params.listingType = filterState.listingType;
+    if (filterState.minPrice) params.minPrice = filterState.minPrice;
+    if (filterState.maxPrice) params.maxPrice = filterState.maxPrice;
+    if (filterState.brand?.length > 0) params.brand = filterState.brand.join(',');
+    if (filterState.color?.length > 0) params.color = filterState.color.join(',');
+    if (filterState.freeShipping) params.freeShipping = 'true';
+    if (filterState.localPickup) params.localPickup = 'true';
+    if (filterState.acceptsOffers) params.acceptsOffers = 'true';
+    if (filterState.freeReturns) params.freeReturns = 'true';
+    if (filterState.sortBy) params.sortBy = filterState.sortBy;
+    if (filterState.sortOrder) params.sortOrder = filterState.sortOrder;
 
-  const handleFilterChange = (key, value) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setPagination((prev) => ({ ...prev, page: 1 }));
+    return params;
+  }, []);
 
-    const newParams = new URLSearchParams(searchParams);
-    if (value) {
-      newParams.set(key, value);
-    } else {
-      newParams.delete(key);
+  // Fetch filter options
+  const fetchFilters = useCallback(async (filterState) => {
+    setFiltersLoading(true);
+    try {
+      const params = buildApiParams(filterState);
+      delete params.page;
+      delete params.limit;
+      delete params.sortBy;
+      delete params.sortOrder;
+
+      const response = await productService.getFilters(params);
+      setFilterOptions(response.data);
+    } catch (error) {
+      console.error('Error fetching filters:', error);
+    } finally {
+      setFiltersLoading(false);
     }
+  }, [buildApiParams]);
+
+  // Fetch products
+  const fetchProducts = useCallback(async (filterState, page = 1) => {
+    setLoading(true);
+    try {
+      const params = buildApiParams(filterState, page);
+      const response = await productService.getAll(params);
+      setProducts(response.data.products);
+      setPagination(response.data.pagination);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [buildApiParams]);
+
+  // Initial load and when filters change
+  useEffect(() => {
+    const currentPage = parseInt(searchParams.get('page')) || 1;
+    fetchProducts(filters, currentPage);
+    fetchFilters(filters);
+  }, [filters, searchParams, fetchProducts, fetchFilters]);
+
+  // Update URL params when filters change
+  const updateURLParams = useCallback((newFilters) => {
+    const newParams = new URLSearchParams();
+
+    if (newFilters.search) newParams.set('q', newFilters.search);
+    if (newFilters.category) newParams.set('category', newFilters.category);
+    if (newFilters.subcategory) newParams.set('subcategory', newFilters.subcategory);
+    if (newFilters.condition?.length > 0) newParams.set('condition', newFilters.condition.join(','));
+    if (newFilters.listingType) newParams.set('listingType', newFilters.listingType);
+    if (newFilters.minPrice) newParams.set('minPrice', newFilters.minPrice);
+    if (newFilters.maxPrice) newParams.set('maxPrice', newFilters.maxPrice);
+    if (newFilters.brand?.length > 0) newParams.set('brand', newFilters.brand.join(','));
+    if (newFilters.color?.length > 0) newParams.set('color', newFilters.color.join(','));
+    if (newFilters.size?.length > 0) newParams.set('size', newFilters.size.join(','));
+    if (newFilters.freeShipping) newParams.set('freeShipping', 'true');
+    if (newFilters.localPickup) newParams.set('localPickup', 'true');
+    if (newFilters.acceptsOffers) newParams.set('acceptsOffers', 'true');
+    if (newFilters.freeReturns) newParams.set('freeReturns', 'true');
+    if (newFilters.sortBy && newFilters.sortBy !== 'created_at') newParams.set('sortBy', newFilters.sortBy);
+    if (newFilters.sortOrder && newFilters.sortOrder !== 'desc') newParams.set('sortOrder', newFilters.sortOrder);
+
     setSearchParams(newParams);
-  };
+  }, [setSearchParams]);
 
-  const handlePriceRangeChange = (event, newValue) => {
-    setPriceRange(newValue);
-  };
+  // Handle filter changes
+  const handleFilterChange = useCallback((key, value) => {
+    setFilters((prev) => {
+      const newFilters = { ...prev, [key]: value };
+      // Reset subcategory when category changes
+      if (key === 'category') {
+        newFilters.subcategory = '';
+      }
+      updateURLParams(newFilters);
+      return newFilters;
+    });
+    // Reset to page 1 when filters change
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, [updateURLParams]);
 
-  const handlePriceRangeCommit = () => {
-    handleFilterChange('minPrice', priceRange[0] > 0 ? priceRange[0] : '');
-    handleFilterChange('maxPrice', priceRange[1] < 5000 ? priceRange[1] : '');
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      search: '',
+  // Clear all filters
+  const handleClearFilters = useCallback(() => {
+    const clearedFilters = {
+      search: filters.search, // Keep search term
       category: '',
-      condition: '',
+      subcategory: '',
+      condition: [],
       listingType: '',
       minPrice: '',
       maxPrice: '',
+      brand: [],
+      color: [],
+      size: [],
       freeShipping: false,
-      sortBy: 'created_at',
-      sortOrder: 'desc',
-      location: '',
-      state: '',
-      country: 'US',
-      brand: '',
+      localPickup: false,
       acceptsOffers: false,
       freeReturns: false,
-      topRatedSeller: false,
-      minSellerRating: '',
-      endingWithin: '',
-      localPickup: false,
-      featured: false,
-    });
-    setPriceRange([0, 5000]);
+      sortBy: 'created_at',
+      sortOrder: 'desc',
+    };
+    setFilters(clearedFilters);
+    updateURLParams(clearedFilters);
     setPagination((prev) => ({ ...prev, page: 1 }));
-    setSearchParams({});
-  };
+  }, [filters.search, updateURLParams]);
 
-  const conditions = [
-    { value: 'new', label: 'Brand New' },
-    { value: 'like_new', label: 'Like New' },
-    { value: 'very_good', label: 'Very Good' },
-    { value: 'good', label: 'Good' },
-    { value: 'acceptable', label: 'Acceptable' },
-  ];
+  // Handle page change
+  const handlePageChange = useCallback((event, page) => {
+    setPagination((prev) => ({ ...prev, page }));
+    const newParams = new URLSearchParams(searchParams);
+    if (page > 1) {
+      newParams.set('page', page);
+    } else {
+      newParams.delete('page');
+    }
+    setSearchParams(newParams);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [searchParams, setSearchParams]);
 
-  const listingTypes = [
-    { value: 'auction', label: 'Auction' },
-    { value: 'buy_now', label: 'Buy It Now' },
-    { value: 'both', label: 'Auction + Buy Now' },
-  ];
+  // Handle sort change
+  const handleSortChange = useCallback((event) => {
+    const [sortBy, sortOrder] = event.target.value.split('-');
+    handleFilterChange('sortBy', sortBy);
+    handleFilterChange('sortOrder', sortOrder);
+  }, [handleFilterChange]);
 
+  // Sort options
   const sortOptions = [
+    ...(filters.search ? [{ value: 'relevance-desc', label: 'Best match' }] : []),
     { value: 'created_at-desc', label: 'Newest first' },
     { value: 'created_at-asc', label: 'Oldest first' },
     { value: 'price-asc', label: 'Price: Low to High' },
@@ -194,64 +230,65 @@ const Search = () => {
     { value: 'view_count-desc', label: 'Most popular' },
   ];
 
-  const usStates = [
-    'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut',
-    'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa',
-    'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan',
-    'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire',
-    'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio',
-    'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
-    'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia',
-    'Wisconsin', 'Wyoming',
+  // Count active filters for mobile badge
+  const activeFiltersCount = useMemo(() => {
+    return [
+      filters.category,
+      filters.subcategory,
+      filters.condition?.length > 0,
+      filters.listingType,
+      filters.minPrice,
+      filters.maxPrice,
+      filters.brand?.length > 0,
+      filters.color?.length > 0,
+      filters.freeShipping,
+      filters.localPickup,
+      filters.acceptsOffers,
+      filters.freeReturns,
+    ].filter(Boolean).length;
+  }, [filters]);
+
+  // Quick filter buttons
+  const quickFilters = [
+    {
+      label: 'Auctions',
+      icon: null,
+      active: filters.listingType === 'auction',
+      onClick: () =>
+        handleFilterChange('listingType', filters.listingType === 'auction' ? '' : 'auction'),
+    },
+    {
+      label: 'Buy It Now',
+      icon: null,
+      active: filters.listingType === 'buy_now',
+      onClick: () =>
+        handleFilterChange('listingType', filters.listingType === 'buy_now' ? '' : 'buy_now'),
+    },
+    {
+      label: 'Free Shipping',
+      icon: null,
+      active: filters.freeShipping,
+      onClick: () => handleFilterChange('freeShipping', !filters.freeShipping),
+    },
+    {
+      label: 'Accepts Offers',
+      icon: null,
+      active: filters.acceptsOffers,
+      onClick: () => handleFilterChange('acceptsOffers', !filters.acceptsOffers),
+    },
   ];
 
-  const countries = [
-    { value: 'US', label: 'United States' },
-    { value: 'CA', label: 'Canada' },
-    { value: 'UK', label: 'United Kingdom' },
-    { value: 'AU', label: 'Australia' },
-    { value: 'DE', label: 'Germany' },
-    { value: 'FR', label: 'France' },
-    { value: 'JP', label: 'Japan' },
-    { value: 'CN', label: 'China' },
-    { value: 'WORLDWIDE', label: 'Worldwide' },
-  ];
-
-  const endingWithinOptions = [
-    { value: '1', label: '1 hour' },
-    { value: '4', label: '4 hours' },
-    { value: '12', label: '12 hours' },
-    { value: '24', label: '1 day' },
-    { value: '48', label: '2 days' },
-    { value: '168', label: '7 days' },
-  ];
-
-  const sellerRatingOptions = [
-    { value: '4.5', label: '4.5 stars & up' },
-    { value: '4.0', label: '4.0 stars & up' },
-    { value: '3.5', label: '3.5 stars & up' },
-    { value: '3.0', label: '3.0 stars & up' },
-  ];
-
-  const activeFiltersCount = [
-    filters.category,
-    filters.condition,
-    filters.listingType,
-    filters.minPrice,
-    filters.maxPrice,
-    filters.freeShipping,
-    filters.location,
-    filters.state,
-    filters.country !== 'US' && filters.country,
-    filters.brand,
-    filters.acceptsOffers,
-    filters.freeReturns,
-    filters.topRatedSeller,
-    filters.minSellerRating,
-    filters.endingWithin,
-    filters.localPickup,
-    filters.featured,
-  ].filter(Boolean).length;
+  // Filter sidebar component for both desktop and mobile
+  const filterSidebarContent = (
+    <FilterSidebar
+      filters={filters}
+      filterOptions={filterOptions}
+      selectedFilters={filters}
+      onFilterChange={handleFilterChange}
+      onClearFilters={handleClearFilters}
+      loading={filtersLoading}
+    />
+  );
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -260,485 +297,51 @@ const Search = () => {
         <Typography variant="h5" sx={{ fontWeight: 600, mb: 1 }}>
           {filters.search ? `Results for "${filters.search}"` : 'All Products'}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {pagination.total.toLocaleString()} results
         </Typography>
+
+        {/* Quick Filter Buttons */}
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Filter Button - Shows on smaller screens */}
+          {isMobile && (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<FilterList />}
+              onClick={() => setMobileDrawerOpen(true)}
+              sx={{ borderRadius: 2, mr: 1 }}
+            >
+              All Filters {activeFiltersCount > 0 && `(${activeFiltersCount})`}
+            </Button>
+          )}
+
+          {quickFilters.map((filter) => (
+            <Button
+              key={filter.label}
+              variant={filter.active ? 'contained' : 'outlined'}
+              size="small"
+              onClick={filter.onClick}
+              sx={{ borderRadius: 5 }}
+            >
+              {filter.label}
+            </Button>
+          ))}
+        </Box>
       </Box>
 
-      {/* Active filters */}
-      {activeFiltersCount > 0 && (
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-          {filters.category && (
-            <Chip
-              label={categories.find((c) => c.slug === filters.category)?.name || filters.category}
-              onDelete={() => handleFilterChange('category', '')}
-              size="small"
-            />
-          )}
-          {filters.condition && (
-            <Chip
-              label={conditions.find((c) => c.value === filters.condition)?.label}
-              onDelete={() => handleFilterChange('condition', '')}
-              size="small"
-            />
-          )}
-          {filters.listingType && (
-            <Chip
-              label={listingTypes.find((l) => l.value === filters.listingType)?.label}
-              onDelete={() => handleFilterChange('listingType', '')}
-              size="small"
-            />
-          )}
-          {(filters.minPrice || filters.maxPrice) && (
-            <Chip
-              label={`$${filters.minPrice || '0'} - $${filters.maxPrice || '∞'}`}
-              onDelete={() => {
-                handleFilterChange('minPrice', '');
-                handleFilterChange('maxPrice', '');
-                setPriceRange([0, 5000]);
-              }}
-              size="small"
-            />
-          )}
-          {filters.location && (
-            <Chip
-              icon={<LocationOn fontSize="small" />}
-              label={filters.location}
-              onDelete={() => handleFilterChange('location', '')}
-              size="small"
-            />
-          )}
-          {filters.state && (
-            <Chip
-              label={filters.state}
-              onDelete={() => handleFilterChange('state', '')}
-              size="small"
-            />
-          )}
-          {filters.country && filters.country !== 'US' && (
-            <Chip
-              label={countries.find((c) => c.value === filters.country)?.label}
-              onDelete={() => handleFilterChange('country', 'US')}
-              size="small"
-            />
-          )}
-          {filters.brand && (
-            <Chip
-              label={`Brand: ${filters.brand}`}
-              onDelete={() => handleFilterChange('brand', '')}
-              size="small"
-            />
-          )}
-          {filters.freeShipping && (
-            <Chip
-              icon={<LocalShipping fontSize="small" />}
-              label="Free Shipping"
-              onDelete={() => handleFilterChange('freeShipping', false)}
-              size="small"
-              color="success"
-            />
-          )}
-          {filters.localPickup && (
-            <Chip
-              label="Local Pickup"
-              onDelete={() => handleFilterChange('localPickup', false)}
-              size="small"
-            />
-          )}
-          {filters.freeReturns && (
-            <Chip
-              label="Free Returns"
-              onDelete={() => handleFilterChange('freeReturns', false)}
-              size="small"
-              color="success"
-            />
-          )}
-          {filters.acceptsOffers && (
-            <Chip
-              label="Accepts Offers"
-              onDelete={() => handleFilterChange('acceptsOffers', false)}
-              size="small"
-            />
-          )}
-          {filters.topRatedSeller && (
-            <Chip
-              icon={<Verified fontSize="small" />}
-              label="Top Rated Seller"
-              onDelete={() => handleFilterChange('topRatedSeller', false)}
-              size="small"
-              color="primary"
-            />
-          )}
-          {filters.minSellerRating && (
-            <Chip
-              icon={<Star fontSize="small" />}
-              label={`${filters.minSellerRating}+ stars`}
-              onDelete={() => handleFilterChange('minSellerRating', '')}
-              size="small"
-            />
-          )}
-          {filters.endingWithin && (
-            <Chip
-              label={`Ending in ${endingWithinOptions.find((e) => e.value === filters.endingWithin)?.label}`}
-              onDelete={() => handleFilterChange('endingWithin', '')}
-              size="small"
-              color="warning"
-            />
-          )}
-          {filters.featured && (
-            <Chip
-              label="Featured"
-              onDelete={() => handleFilterChange('featured', false)}
-              size="small"
-              color="secondary"
-            />
-          )}
-          <Button size="small" onClick={clearFilters}>
-            Clear all
-          </Button>
-        </Box>
-      )}
-
       <Grid container spacing={3}>
-        {/* Filters sidebar */}
-        <Grid item xs={12} md={3}>
-          <Paper sx={{ p: 2 }}>
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                mb: 2,
-                cursor: isMobile ? 'pointer' : 'default',
-              }}
-              onClick={() => isMobile && setShowFilters(!showFilters)}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <FilterList />
-                <Typography variant="h6">Filters</Typography>
-                {activeFiltersCount > 0 && (
-                  <Chip label={activeFiltersCount} size="small" color="primary" />
-                )}
-              </Box>
-              {isMobile && (showFilters ? <ExpandLess /> : <ExpandMore />)}
+        {/* Filters sidebar - Desktop/Tablet */}
+        {!isMobile && (
+          <Grid item xs={12} sm={4} md={3} lg={2.5}>
+            <Box sx={{ position: 'sticky', top: 80, maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
+              {filterSidebarContent}
             </Box>
-
-            <Collapse in={showFilters}>
-              {/* Category */}
-              <Accordion defaultExpanded disableGutters elevation={0}>
-                <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle2">Category</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0 }}>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={filters.category}
-                      displayEmpty
-                      onChange={(e) => handleFilterChange('category', e.target.value)}
-                    >
-                      <MenuItem value="">All Categories</MenuItem>
-                      {categories.map((cat) => (
-                        <MenuItem key={cat.id} value={cat.slug}>
-                          {cat.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </AccordionDetails>
-              </Accordion>
-
-              <Divider />
-
-              {/* Condition */}
-              <Accordion defaultExpanded disableGutters elevation={0}>
-                <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle2">Condition</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0 }}>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={filters.condition}
-                      displayEmpty
-                      onChange={(e) => handleFilterChange('condition', e.target.value)}
-                    >
-                      <MenuItem value="">Any condition</MenuItem>
-                      {conditions.map((cond) => (
-                        <MenuItem key={cond.value} value={cond.value}>
-                          {cond.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </AccordionDetails>
-              </Accordion>
-
-              <Divider />
-
-              {/* Buying Format */}
-              <Accordion defaultExpanded disableGutters elevation={0}>
-                <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle2">Buying Format</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0 }}>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={filters.listingType}
-                      displayEmpty
-                      onChange={(e) => handleFilterChange('listingType', e.target.value)}
-                    >
-                      <MenuItem value="">All Listings</MenuItem>
-                      {listingTypes.map((type) => (
-                        <MenuItem key={type.value} value={type.value}>
-                          {type.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </AccordionDetails>
-              </Accordion>
-
-              <Divider />
-
-              {/* Price Range */}
-              <Accordion defaultExpanded disableGutters elevation={0}>
-                <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle2">Price</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0 }}>
-                  <Slider
-                    value={priceRange}
-                    onChange={handlePriceRangeChange}
-                    onChangeCommitted={handlePriceRangeCommit}
-                    valueLabelDisplay="auto"
-                    min={0}
-                    max={5000}
-                    valueLabelFormat={(v) => `$${v}`}
-                  />
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="caption">${priceRange[0]}</Typography>
-                    <Typography variant="caption">${priceRange[1]}</Typography>
-                  </Box>
-                </AccordionDetails>
-              </Accordion>
-
-              <Divider />
-
-              {/* Item Location */}
-              <Accordion disableGutters elevation={0}>
-                <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <LocationOn fontSize="small" />
-                    <Typography variant="subtitle2">Item Location</Typography>
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="City or ZIP code"
-                    value={filters.location}
-                    onChange={(e) => handleFilterChange('location', e.target.value)}
-                    sx={{ mb: 2 }}
-                  />
-                  <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                    <InputLabel>State</InputLabel>
-                    <Select
-                      value={filters.state}
-                      label="State"
-                      onChange={(e) => handleFilterChange('state', e.target.value)}
-                    >
-                      <MenuItem value="">Any State</MenuItem>
-                      {usStates.map((state) => (
-                        <MenuItem key={state} value={state}>
-                          {state}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Country</InputLabel>
-                    <Select
-                      value={filters.country}
-                      label="Country"
-                      onChange={(e) => handleFilterChange('country', e.target.value)}
-                    >
-                      {countries.map((country) => (
-                        <MenuItem key={country.value} value={country.value}>
-                          {country.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </AccordionDetails>
-              </Accordion>
-
-              <Divider />
-
-              {/* Delivery Options */}
-              <Accordion disableGutters elevation={0}>
-                <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <LocalShipping fontSize="small" />
-                    <Typography variant="subtitle2">Delivery Options</Typography>
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0 }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.freeShipping}
-                        onChange={(e) => handleFilterChange('freeShipping', e.target.checked)}
-                      />
-                    }
-                    label="Free Shipping"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.localPickup}
-                        onChange={(e) => handleFilterChange('localPickup', e.target.checked)}
-                      />
-                    }
-                    label="Local Pickup"
-                  />
-                </AccordionDetails>
-              </Accordion>
-
-              <Divider />
-
-              {/* Show Only */}
-              <Accordion disableGutters elevation={0}>
-                <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle2">Show Only</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0 }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.freeReturns}
-                        onChange={(e) => handleFilterChange('freeReturns', e.target.checked)}
-                      />
-                    }
-                    label="Free Returns"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.acceptsOffers}
-                        onChange={(e) => handleFilterChange('acceptsOffers', e.target.checked)}
-                      />
-                    }
-                    label="Accepts Offers"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.featured}
-                        onChange={(e) => handleFilterChange('featured', e.target.checked)}
-                      />
-                    }
-                    label="Featured Items"
-                  />
-                </AccordionDetails>
-              </Accordion>
-
-              <Divider />
-
-              {/* Seller */}
-              <Accordion disableGutters elevation={0}>
-                <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Verified fontSize="small" />
-                    <Typography variant="subtitle2">Seller</Typography>
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0 }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.topRatedSeller}
-                        onChange={(e) => handleFilterChange('topRatedSeller', e.target.checked)}
-                      />
-                    }
-                    label={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Verified fontSize="small" color="primary" />
-                        Top Rated Seller
-                      </Box>
-                    }
-                  />
-                  <FormControl fullWidth size="small" sx={{ mt: 2 }}>
-                    <InputLabel>Minimum Seller Rating</InputLabel>
-                    <Select
-                      value={filters.minSellerRating}
-                      label="Minimum Seller Rating"
-                      onChange={(e) => handleFilterChange('minSellerRating', e.target.value)}
-                    >
-                      <MenuItem value="">Any Rating</MenuItem>
-                      {sellerRatingOptions.map((opt) => (
-                        <MenuItem key={opt.value} value={opt.value}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Rating value={parseFloat(opt.value)} precision={0.5} size="small" readOnly />
-                            <Typography variant="body2">& up</Typography>
-                          </Box>
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </AccordionDetails>
-              </Accordion>
-
-              <Divider />
-
-              {/* Ending Within (for Auctions) */}
-              <Accordion disableGutters elevation={0}>
-                <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle2">Ending Within</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                    For auction listings only
-                  </Typography>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={filters.endingWithin}
-                      displayEmpty
-                      onChange={(e) => handleFilterChange('endingWithin', e.target.value)}
-                    >
-                      <MenuItem value="">Any time</MenuItem>
-                      {endingWithinOptions.map((opt) => (
-                        <MenuItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </AccordionDetails>
-              </Accordion>
-
-              <Divider />
-
-              {/* Brand */}
-              <Accordion disableGutters elevation={0}>
-                <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle2">Brand</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Enter brand name"
-                    value={filters.brand}
-                    onChange={(e) => handleFilterChange('brand', e.target.value)}
-                  />
-                </AccordionDetails>
-              </Accordion>
-            </Collapse>
-          </Paper>
-        </Grid>
+          </Grid>
+        )}
 
         {/* Products */}
-        <Grid item xs={12} md={9}>
+        <Grid item xs={12} sm={isMobile ? 12 : 8} md={isMobile ? 12 : 9} lg={isMobile ? 12 : 9.5}>
           {/* Sort */}
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
             <FormControl size="small" sx={{ minWidth: 200 }}>
@@ -746,11 +349,7 @@ const Search = () => {
               <Select
                 value={`${filters.sortBy}-${filters.sortOrder}`}
                 label="Sort by"
-                onChange={(e) => {
-                  const [sortBy, sortOrder] = e.target.value.split('-');
-                  handleFilterChange('sortBy', sortBy);
-                  handleFilterChange('sortOrder', sortOrder);
-                }}
+                onChange={handleSortChange}
               >
                 {sortOptions.map((opt) => (
                   <MenuItem key={opt.value} value={opt.value}>
@@ -769,17 +368,7 @@ const Search = () => {
               <Pagination
                 count={pagination.pages}
                 page={pagination.page}
-                onChange={(e, page) => {
-                  setPagination((prev) => ({ ...prev, page }));
-                  const newParams = new URLSearchParams(searchParams);
-                  if (page > 1) {
-                    newParams.set('page', page);
-                  } else {
-                    newParams.delete('page');
-                  }
-                  setSearchParams(newParams);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                onChange={handlePageChange}
                 color="primary"
                 size="large"
               />
@@ -787,6 +376,52 @@ const Search = () => {
           )}
         </Grid>
       </Grid>
+
+      {/* Mobile Filter Drawer */}
+      <Drawer
+        anchor="left"
+        open={mobileDrawerOpen}
+        onClose={() => setMobileDrawerOpen(false)}
+        PaperProps={{
+          sx: { width: '85%', maxWidth: 360 },
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              mb: 2,
+            }}
+          >
+            <Typography variant="h6">Filters</Typography>
+            <IconButton onClick={() => setMobileDrawerOpen(false)}>
+              <Close />
+            </IconButton>
+          </Box>
+          {filterSidebarContent}
+          <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              fullWidth
+              onClick={() => {
+                handleClearFilters();
+                setMobileDrawerOpen(false);
+              }}
+            >
+              Clear All
+            </Button>
+            <Button
+              variant="contained"
+              fullWidth
+              onClick={() => setMobileDrawerOpen(false)}
+            >
+              Apply ({pagination.total} results)
+            </Button>
+          </Box>
+        </Box>
+      </Drawer>
     </Container>
   );
 };

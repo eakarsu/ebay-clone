@@ -1,0 +1,44 @@
+{
+  "common": {
+    "search": "Buscar",
+    "buy_now": "Cómpralo ya",
+    "place_bid": "Pujar",
+    "add_to_cart": "Añadir al carrito",
+    "add_to_watchlist": "Añadir a seguidos",
+    "sign_in": "Iniciar sesión",
+    "register": "Registrarse",
+    "sell": "Vender",
+    "cart": "Carrito",
+    "orders": "Pedidos",
+    "language": "Idioma",
+    "currency": "Moneda",
+    "loading": "Cargando...",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "continue": "Continuar"
+  },
+  "home": {
+    "hero_title": "Grandes ofertas en millones de artículos",
+    "trending": "Tendencias",
+    "recommended": "Recomendado para ti"
+  },
+  "product": {
+    "current_bid": "Puja actual",
+    "time_left": "Tiempo restante",
+    "bids": "pujas",
+    "ending_soon": "Termina pronto",
+    "shipping": "Envío",
+    "free_shipping": "Envío gratis",
+    "condition": "Estado"
+  },
+  "onboarding": {
+    "title": "Conviértete en vendedor",
+    "step_account": "Cuenta",
+    "step_identity": "Verifica tu identidad",
+    "step_payout": "Método de cobro",
+    "step_tax": "Información fiscal",
+    "step_policies": "Políticas de envío y devolución",
+    "step_first_listing": "Publica tu primer artículo",
+    "completed": "¡Todo listo — empieza a vender!"
+  }
+}

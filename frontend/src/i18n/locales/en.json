@@ -1,0 +1,44 @@
+{
+  "common": {
+    "search": "Search",
+    "buy_now": "Buy It Now",
+    "place_bid": "Place Bid",
+    "add_to_cart": "Add to Cart",
+    "add_to_watchlist": "Add to Watchlist",
+    "sign_in": "Sign in",
+    "register": "Register",
+    "sell": "Sell",
+    "cart": "Cart",
+    "orders": "Orders",
+    "language": "Language",
+    "currency": "Currency",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "continue": "Continue"
+  },
+  "home": {
+    "hero_title": "Find great deals on millions of items",
+    "trending": "Trending now",
+    "recommended": "Recommended for you"
+  },
+  "product": {
+    "current_bid": "Current bid",
+    "time_left": "Time left",
+    "bids": "bids",
+    "ending_soon": "Ending soon",
+    "shipping": "Shipping",
+    "free_shipping": "Free shipping",
+    "condition": "Condition"
+  },
+  "onboarding": {
+    "title": "Become a seller",
+    "step_account": "Account basics",
+    "step_identity": "Verify your identity",
+    "step_payout": "Payout method",
+    "step_tax": "Tax information",
+    "step_policies": "Return & shipping policies",
+    "step_first_listing": "Create your first listing",
+    "completed": "You're all set — start selling!"
+  }
+}

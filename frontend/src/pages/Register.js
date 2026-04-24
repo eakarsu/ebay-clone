@@ -11,6 +11,7 @@ import {
   Alert,
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
+import PasswordStrengthMeter from '../components/PasswordStrengthMeter';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -43,8 +44,15 @@ const Register = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters');
+      setLoading(false);
+      return;
+    }
+
+    if (!/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) ||
+        !/[0-9]/.test(formData.password) || !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(formData.password)) {
+      setError('Password must include uppercase, lowercase, number, and special character');
       setLoading(false);
       return;
     }
@@ -139,8 +147,9 @@ const Register = () => {
                 value={formData.password}
                 onChange={handleChange}
                 required
-                helperText="At least 6 characters"
+                helperText="At least 8 characters with uppercase, lowercase, number, and special character"
               />
+              <PasswordStrengthMeter password={formData.password} />
             </Grid>
             <Grid item xs={12}>
               <TextField

@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { screenListing, recordReport } = require('../services/moderationService');
 
 const createSlug = (title) => {
   return title
@@ -29,6 +30,7 @@ const getAllProducts = async (req, res, next) => {
       state,
       country,
       brand,
+      color,
       acceptsOffers,
       freeReturns,
       topRatedSeller,
@@ -68,9 +70,11 @@ const getAllProducts = async (req, res, next) => {
     }
 
     if (condition) {
+      // Support multiple conditions separated by comma
+      const conditions = condition.split(',').map(c => c.trim());
       paramCount++;
-      whereConditions.push(`p.condition = $${paramCount}`);
-      queryParams.push(condition);
+      whereConditions.push(`p.condition = ANY($${paramCount}::text[])`);
+      queryParams.push(conditions);
     }
 
     if (listingType) {
@@ -87,7 +91,7 @@ const getAllProducts = async (req, res, next) => {
 
     if (search) {
       paramCount++;
-      whereConditions.push(`to_tsvector('english', p.title || ' ' || p.description) @@ plainto_tsquery('english', $${paramCount})`);
+      whereConditions.push(`p.search_vector @@ websearch_to_tsquery('english', $${paramCount})`);
       queryParams.push(search);
     }
 
@@ -115,9 +119,19 @@ const getAllProducts = async (req, res, next) => {
     }
 
     if (brand) {
+      // Support multiple brands separated by comma
+      const brands = brand.split(',').map(b => b.trim().toLowerCase());
       paramCount++;
-      whereConditions.push(`LOWER(p.brand) = LOWER($${paramCount})`);
-      queryParams.push(brand);
+      whereConditions.push(`LOWER(p.brand) = ANY($${paramCount}::text[])`);
+      queryParams.push(brands);
+    }
+
+    if (color) {
+      // Support multiple colors separated by comma
+      const colors = color.split(',').map(c => c.trim().toLowerCase());
+      paramCount++;
+      whereConditions.push(`LOWER(p.color) = ANY($${paramCount}::text[])`);
+      queryParams.push(colors);
     }
 
     if (acceptsOffers === 'true') {
@@ -156,18 +170,7 @@ const getAllProducts = async (req, res, next) => {
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-    const validSortColumns = {
-      created_at: 'p.created_at',
-      price: 'COALESCE(p.current_price, p.buy_now_price)',
-      title: 'p.title',
-      auction_end: 'p.auction_end',
-      view_count: 'p.view_count',
-    };
-
-    const sortColumn = validSortColumns[sortBy] || 'p.created_at';
-    const order = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-
-    // Count query
+    // Count query (uses only WHERE params — don't push additional params before this runs).
     const countQuery = `
       SELECT COUNT(*) as total
       FROM products p
@@ -178,6 +181,26 @@ const getAllProducts = async (req, res, next) => {
 
     const countResult = await pool.query(countQuery, queryParams);
     const total = parseInt(countResult.rows[0].total);
+
+    // Relevance sort needs a parameter slot for the search text — pushed AFTER count.
+    let relevanceExpr = 'p.created_at';
+    if (sortBy === 'relevance' && search) {
+      paramCount++;
+      queryParams.push(search);
+      relevanceExpr = `ts_rank_cd(p.search_vector, websearch_to_tsquery('english', $${paramCount}))`;
+    }
+
+    const validSortColumns = {
+      created_at: 'p.created_at',
+      price: 'COALESCE(p.current_price, p.buy_now_price)',
+      title: 'p.title',
+      auction_end: 'p.auction_end',
+      view_count: 'p.view_count',
+      relevance: relevanceExpr,
+    };
+
+    const sortColumn = validSortColumns[sortBy] || 'p.created_at';
+    const order = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     // Main query
     paramCount++;
@@ -369,20 +392,27 @@ const getProductById = async (req, res, next) => {
       model: product.model,
       sku: product.sku,
       upc: product.upc,
-      weight: product.weight,
+      weight: product.weight ? parseFloat(product.weight) + ' lbs' : null,
       dimensions: product.dimensions,
       color: product.color,
       size: product.size,
       material: product.material,
       viewCount: product.view_count,
       watchCount: product.watch_count,
+      shareCount: product.share_count,
       featured: product.featured,
       acceptsOffers: product.accepts_offers,
-      minimumOfferAmount: product.minimum_offer_amount ? parseFloat(product.minimum_offer_amount) : null,
-      acceptsReturns: product.accepts_returns,
-      returnPeriod: product.return_period,
-      returnShippingPaidBy: product.return_shipping_paid_by,
-      freeReturns: product.free_returns,
+      minimumOfferAmount: product.auto_decline_price ? parseFloat(product.auto_decline_price) : null,
+      minimumOfferPercentage: product.minimum_offer_percentage,
+      autoAcceptPrice: product.auto_accept_price ? parseFloat(product.auto_accept_price) : null,
+      autoDeclinePrice: product.auto_decline_price ? parseFloat(product.auto_decline_price) : null,
+      acceptsReturns: product.return_policy !== 'no_returns',
+      returnPeriod: product.return_days,
+      returnPolicy: product.return_policy,
+      returnShippingPaidBy: product.return_policy === 'returns_accepted' ? 'seller' : 'buyer',
+      freeReturns: product.return_policy === 'returns_accepted',
+      yourCost: product.your_cost ? parseFloat(product.your_cost) : null,
+      countryOfOrigin: product.country_of_origin,
       status: product.status,
       createdAt: product.created_at,
       category: { id: product.category_id, name: product.category_name, slug: product.category_slug },
@@ -430,7 +460,19 @@ const createProduct = async (req, res, next) => {
       allowsLocalPickup, acceptsOffers, minimumOfferAmount,
       acceptsReturns, returnPeriod, returnShippingPaidBy,
       images,
+      // Latest features
+      yourCost, countryOfOrigin,
     } = req.body;
+
+    // Content moderation — block outright, or flag pending review
+    const mod = await screenListing({ title, description, brand });
+    if (mod.decision === 'block') {
+      return res.status(400).json({
+        error: 'Listing violates our policies',
+        categories: mod.categories,
+        matched: mod.matched,
+      });
+    }
 
     const slug = createSlug(title);
     let auctionStart = null;
@@ -453,8 +495,9 @@ const createProduct = async (req, res, next) => {
         estimated_delivery_days, brand, model, sku, weight, dimensions, color, size, material, upc,
         handling_time, shipping_service, package_weight, package_length, package_width, package_height,
         allows_local_pickup, accepts_offers, minimum_offer_amount,
-        accepts_returns, return_period, return_shipping_paid_by, free_returns
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44)
+        accepts_returns, return_period, return_shipping_paid_by, free_returns,
+        your_cost, country_of_origin
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46)
       RETURNING *`,
       [
         req.user.id, categoryId, subcategoryId || null, title, slug, description,
@@ -467,6 +510,7 @@ const createProduct = async (req, res, next) => {
         packageLength || null, packageWidth || null, packageHeight || null,
         allowsLocalPickup || false, acceptsOffers || false, minimumOfferAmount || null,
         acceptsReturns !== false, returnPeriod || 30, returnShippingPaidBy || 'buyer', freeReturns,
+        yourCost || null, countryOfOrigin || null,
       ]
     );
 
@@ -481,6 +525,11 @@ const createProduct = async (req, res, next) => {
           [product.id, images[i].url, images[i].thumbnail || images[i].url, images[i].altText || title, i, i === 0]
         );
       }
+    }
+
+    // Record moderation outcome (flag keeps listing active but visible to mods)
+    if (mod.decision !== 'allow') {
+      await recordReport(product.id, mod);
     }
 
     // Update user to seller if not already
@@ -541,6 +590,13 @@ const updateProduct = async (req, res, next) => {
     const query = `UPDATE products SET ${setClause.join(', ')} WHERE id = $${paramCount} RETURNING *`;
     const result = await pool.query(query, values);
 
+    // Fire-and-forget: notify watchers if price dropped. Triggered on any update,
+    // the helper itself compares new vs each watcher's stored price.
+    if (updates.buyNowPrice !== undefined || updates.buy_now_price !== undefined) {
+      const { notifyPriceDrop } = require('../services/priceDrop');
+      notifyPriceDrop(id);
+    }
+
     res.json({
       message: 'Product updated successfully',
       product: result.rows[0],
@@ -572,10 +628,355 @@ const deleteProduct = async (req, res, next) => {
   }
 };
 
+// Get available filter options with counts based on current search/filters
+const getFilters = async (req, res, next) => {
+  try {
+    const {
+      search,
+      category,
+      subcategory,
+      minPrice,
+      maxPrice,
+      condition,
+      listingType,
+      freeShipping,
+      brand,
+      color,
+      acceptsOffers,
+      freeReturns,
+      localPickup,
+      sellerId,
+    } = req.query;
+
+    // Build base WHERE clause for counting (excludes the filter we're counting)
+    const buildWhereClause = (excludeFilter = null) => {
+      let whereConditions = ["p.status = 'active'"];
+      let queryParams = [];
+      let paramCount = 0;
+
+      if (search) {
+        paramCount++;
+        whereConditions.push(`p.search_vector @@ websearch_to_tsquery('english', $${paramCount})`);
+        queryParams.push(search);
+      }
+
+      if (category && excludeFilter !== 'category') {
+        paramCount++;
+        whereConditions.push(`c.slug = $${paramCount}`);
+        queryParams.push(category);
+      }
+
+      if (subcategory && excludeFilter !== 'subcategory') {
+        paramCount++;
+        whereConditions.push(`sc.slug = $${paramCount}`);
+        queryParams.push(subcategory);
+      }
+
+      if (minPrice && excludeFilter !== 'price') {
+        paramCount++;
+        whereConditions.push(`COALESCE(p.current_price, p.buy_now_price) >= $${paramCount}`);
+        queryParams.push(parseFloat(minPrice));
+      }
+
+      if (maxPrice && excludeFilter !== 'price') {
+        paramCount++;
+        whereConditions.push(`COALESCE(p.current_price, p.buy_now_price) <= $${paramCount}`);
+        queryParams.push(parseFloat(maxPrice));
+      }
+
+      if (condition && excludeFilter !== 'condition') {
+        const conditions = condition.split(',');
+        paramCount++;
+        whereConditions.push(`p.condition = ANY($${paramCount}::text[])`);
+        queryParams.push(conditions);
+      }
+
+      if (listingType && excludeFilter !== 'listingType') {
+        paramCount++;
+        whereConditions.push(`p.listing_type = $${paramCount}`);
+        queryParams.push(listingType);
+      }
+
+      if (brand && excludeFilter !== 'brand') {
+        const brands = brand.split(',');
+        paramCount++;
+        whereConditions.push(`LOWER(p.brand) = ANY($${paramCount}::text[])`);
+        queryParams.push(brands.map(b => b.toLowerCase()));
+      }
+
+      if (color && excludeFilter !== 'color') {
+        const colors = color.split(',');
+        paramCount++;
+        whereConditions.push(`LOWER(p.color) = ANY($${paramCount}::text[])`);
+        queryParams.push(colors.map(c => c.toLowerCase()));
+      }
+
+      if (freeShipping === 'true' && excludeFilter !== 'freeShipping') {
+        whereConditions.push(`p.free_shipping = true`);
+      }
+
+      if (acceptsOffers === 'true' && excludeFilter !== 'acceptsOffers') {
+        whereConditions.push(`p.accepts_offers = true`);
+      }
+
+      if (freeReturns === 'true' && excludeFilter !== 'freeReturns') {
+        whereConditions.push(`p.free_returns = true`);
+      }
+
+      if (localPickup === 'true' && excludeFilter !== 'localPickup') {
+        whereConditions.push(`p.allows_local_pickup = true`);
+      }
+
+      if (sellerId) {
+        paramCount++;
+        whereConditions.push(`p.seller_id = $${paramCount}`);
+        queryParams.push(sellerId);
+      }
+
+      return { whereClause: whereConditions.join(' AND '), queryParams, paramCount };
+    };
+
+    // Get brands with counts
+    const brandBase = buildWhereClause('brand');
+    const brandsQuery = `
+      SELECT
+        COALESCE(p.brand, 'Unbranded') as value,
+        COUNT(*) as count
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
+      WHERE ${brandBase.whereClause}
+      GROUP BY COALESCE(p.brand, 'Unbranded')
+      HAVING COUNT(*) > 0
+      ORDER BY count DESC
+      LIMIT 50
+    `;
+    const brandsResult = await pool.query(brandsQuery, brandBase.queryParams);
+
+    // Get colors with counts
+    const colorBase = buildWhereClause('color');
+    const colorsQuery = `
+      SELECT
+        COALESCE(p.color, 'Not Specified') as value,
+        COUNT(*) as count
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
+      WHERE ${colorBase.whereClause} AND p.color IS NOT NULL
+      GROUP BY p.color
+      HAVING COUNT(*) > 0
+      ORDER BY count DESC
+      LIMIT 30
+    `;
+    const colorsResult = await pool.query(colorsQuery, colorBase.queryParams);
+
+    // Get conditions with counts
+    const conditionBase = buildWhereClause('condition');
+    const conditionsQuery = `
+      SELECT
+        p.condition as value,
+        COUNT(*) as count
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
+      WHERE ${conditionBase.whereClause}
+      GROUP BY p.condition
+      ORDER BY
+        CASE p.condition
+          WHEN 'new' THEN 1
+          WHEN 'like_new' THEN 2
+          WHEN 'very_good' THEN 3
+          WHEN 'good' THEN 4
+          WHEN 'acceptable' THEN 5
+          ELSE 6
+        END
+    `;
+    const conditionsResult = await pool.query(conditionsQuery, conditionBase.queryParams);
+
+    // Get categories with counts
+    const categoryBase = buildWhereClause('category');
+    const categoriesQuery = `
+      SELECT
+        c.id,
+        c.name as value,
+        c.slug,
+        COUNT(*) as count
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
+      WHERE ${categoryBase.whereClause}
+      GROUP BY c.id, c.name, c.slug
+      HAVING COUNT(*) > 0
+      ORDER BY count DESC
+    `;
+    const categoriesResult = await pool.query(categoriesQuery, categoryBase.queryParams);
+
+    // Get subcategories with counts (only if category is selected)
+    let subcategoriesResult = { rows: [] };
+    if (category) {
+      const subcategoryBase = buildWhereClause('subcategory');
+      const subcategoriesQuery = `
+        SELECT
+          sc.id,
+          sc.name as value,
+          sc.slug,
+          COUNT(*) as count
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
+        WHERE ${subcategoryBase.whereClause} AND sc.id IS NOT NULL
+        GROUP BY sc.id, sc.name, sc.slug
+        HAVING COUNT(*) > 0
+        ORDER BY count DESC
+      `;
+      subcategoriesResult = await pool.query(subcategoriesQuery, subcategoryBase.queryParams);
+    }
+
+    // Get listing types with counts
+    const listingTypeBase = buildWhereClause('listingType');
+    const listingTypesQuery = `
+      SELECT
+        p.listing_type as value,
+        COUNT(*) as count
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
+      WHERE ${listingTypeBase.whereClause}
+      GROUP BY p.listing_type
+      ORDER BY count DESC
+    `;
+    const listingTypesResult = await pool.query(listingTypesQuery, listingTypeBase.queryParams);
+
+    // Get price range
+    const priceBase = buildWhereClause('price');
+    const priceRangeQuery = `
+      SELECT
+        MIN(COALESCE(p.current_price, p.buy_now_price)) as min,
+        MAX(COALESCE(p.current_price, p.buy_now_price)) as max
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
+      WHERE ${priceBase.whereClause}
+    `;
+    const priceRangeResult = await pool.query(priceRangeQuery, priceBase.queryParams);
+
+    // Get shipping options counts
+    const shippingBase = buildWhereClause('freeShipping');
+    const shippingQuery = `
+      SELECT
+        SUM(CASE WHEN p.free_shipping = true THEN 1 ELSE 0 END) as free_shipping_count,
+        SUM(CASE WHEN p.allows_local_pickup = true THEN 1 ELSE 0 END) as local_pickup_count
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
+      WHERE ${shippingBase.whereClause}
+    `;
+    const shippingResult = await pool.query(shippingQuery, shippingBase.queryParams);
+
+    // Get seller options counts
+    const sellerBase = buildWhereClause();
+    const sellerOptionsQuery = `
+      SELECT
+        SUM(CASE WHEN p.accepts_offers = true THEN 1 ELSE 0 END) as accepts_offers_count,
+        SUM(CASE WHEN p.free_returns = true THEN 1 ELSE 0 END) as free_returns_count
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
+      WHERE ${sellerBase.whereClause}
+    `;
+    const sellerOptionsResult = await pool.query(sellerOptionsQuery, sellerBase.queryParams);
+
+    // Get sizes with counts (for fashion/clothing items)
+    const sizeBase = buildWhereClause('size');
+    const sizesQuery = `
+      SELECT
+        p.size as value,
+        COUNT(*) as count
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
+      WHERE ${sizeBase.whereClause} AND p.size IS NOT NULL
+      GROUP BY p.size
+      HAVING COUNT(*) > 0
+      ORDER BY count DESC
+      LIMIT 30
+    `;
+    const sizesResult = await pool.query(sizesQuery, sizeBase.queryParams);
+
+    // Format condition labels
+    const conditionLabels = {
+      'new': 'Brand New',
+      'like_new': 'Like New',
+      'very_good': 'Very Good',
+      'good': 'Good',
+      'acceptable': 'Acceptable',
+    };
+
+    // Format listing type labels
+    const listingTypeLabels = {
+      'auction': 'Auction',
+      'buy_now': 'Buy It Now',
+      'both': 'Auction + Buy It Now',
+    };
+
+    res.json({
+      brands: brandsResult.rows.map(r => ({
+        value: r.value,
+        count: parseInt(r.count),
+      })),
+      colors: colorsResult.rows.map(r => ({
+        value: r.value,
+        count: parseInt(r.count),
+      })),
+      conditions: conditionsResult.rows.map(r => ({
+        value: r.value,
+        label: conditionLabels[r.value] || r.value,
+        count: parseInt(r.count),
+      })),
+      categories: categoriesResult.rows.map(r => ({
+        id: r.id,
+        value: r.value,
+        slug: r.slug,
+        count: parseInt(r.count),
+      })),
+      subcategories: subcategoriesResult.rows.map(r => ({
+        id: r.id,
+        value: r.value,
+        slug: r.slug,
+        count: parseInt(r.count),
+      })),
+      listingTypes: listingTypesResult.rows.map(r => ({
+        value: r.value,
+        label: listingTypeLabels[r.value] || r.value,
+        count: parseInt(r.count),
+      })),
+      priceRange: {
+        min: parseFloat(priceRangeResult.rows[0]?.min) || 0,
+        max: parseFloat(priceRangeResult.rows[0]?.max) || 10000,
+      },
+      sizes: sizesResult.rows.map(r => ({
+        value: r.value,
+        count: parseInt(r.count),
+      })),
+      shippingOptions: {
+        freeShipping: parseInt(shippingResult.rows[0]?.free_shipping_count) || 0,
+        localPickup: parseInt(shippingResult.rows[0]?.local_pickup_count) || 0,
+      },
+      sellerOptions: {
+        acceptsOffers: parseInt(sellerOptionsResult.rows[0]?.accepts_offers_count) || 0,
+        freeReturns: parseInt(sellerOptionsResult.rows[0]?.free_returns_count) || 0,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAllProducts,
   getProductById,
   createProduct,
   updateProduct,
   deleteProduct,
+  getFilters,
 };

@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import { FavoriteBorder, Favorite } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
-import { recommendationService, watchlistService } from '../../services/api';
+import { recommendationService, watchlistService, getImageUrl } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
 const SimilarItems = ({ productId, categoryId, title = 'Similar items' }) => {
@@ -87,79 +87,99 @@ const SimilarItems = ({ productId, categoryId, title = 'Similar items' }) => {
     <Box sx={{ mt: 4 }}>
       <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>{title}</Typography>
       <Grid container spacing={2}>
-        {items.map((item) => (
-          <Grid item xs={6} sm={4} md={2} key={item.id}>
-            <Card
-              component={Link}
-              to={`/product/${item.id}`}
-              sx={{
-                textDecoration: 'none',
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                position: 'relative',
-                '&:hover': { boxShadow: 4 },
-              }}
-            >
-              {item.matchScore && (
-                <Chip
-                  label={`${Math.round(item.matchScore * 100)}% match`}
-                  size="small"
-                  color="primary"
-                  sx={{ position: 'absolute', top: 8, left: 8, zIndex: 1 }}
-                />
-              )}
-              <IconButton
-                size="small"
-                onClick={(e) => toggleWatchlist(item.id, e)}
+        {items.map((item) => {
+          // Recommendation endpoints return snake_case columns with a single `image` string.
+          // Tolerate the camelCase/`images[]` shape too so this component works with either.
+          const rawImage =
+            item.image ||
+            item.image_url ||
+            item.images?.[0]?.url ||
+            item.images?.[0]?.image_url;
+          const imageSrc = getImageUrl(rawImage) || 'https://via.placeholder.com/200';
+          const price =
+            item.buyNowPrice ??
+            item.buy_now_price ??
+            item.currentPrice ??
+            item.current_price ??
+            item.startingPrice ??
+            item.starting_price;
+          const priceNum = price != null ? Number(price) : null;
+          const freeShipping = item.freeShipping ?? item.free_shipping;
+
+          return (
+            <Grid item xs={6} sm={4} md={2} key={item.id}>
+              <Card
+                component={Link}
+                to={`/product/${item.id}`}
                 sx={{
-                  position: 'absolute',
-                  top: 8,
-                  right: 8,
-                  bgcolor: 'white',
-                  '&:hover': { bgcolor: 'grey.100' },
+                  textDecoration: 'none',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative',
+                  '&:hover': { boxShadow: 4 },
                 }}
               >
-                {watchedItems.has(item.id) ? (
-                  <Favorite color="error" fontSize="small" />
-                ) : (
-                  <FavoriteBorder fontSize="small" />
+                {item.matchScore && (
+                  <Chip
+                    label={`${Math.round(item.matchScore * 100)}% match`}
+                    size="small"
+                    color="primary"
+                    sx={{ position: 'absolute', top: 8, left: 8, zIndex: 1 }}
+                  />
                 )}
-              </IconButton>
-              <CardMedia
-                component="img"
-                height="140"
-                image={item.images?.[0]?.url || 'https://via.placeholder.com/200'}
-                alt={item.title}
-                sx={{ objectFit: 'contain', bgcolor: 'grey.50', p: 1 }}
-              />
-              <CardContent sx={{ flexGrow: 1, p: 1.5 }}>
-                <Typography
-                  variant="body2"
+                <IconButton
+                  size="small"
+                  onClick={(e) => toggleWatchlist(item.id, e)}
                   sx={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    mb: 1,
-                    color: 'text.primary',
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    bgcolor: 'white',
+                    '&:hover': { bgcolor: 'grey.100' },
                   }}
                 >
-                  {item.title}
-                </Typography>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                  ${item.buyNowPrice?.toFixed(2) || item.currentPrice?.toFixed(2)}
-                </Typography>
-                {item.freeShipping && (
-                  <Typography variant="caption" color="success.main">
-                    Free shipping
+                  {watchedItems.has(item.id) ? (
+                    <Favorite color="error" fontSize="small" />
+                  ) : (
+                    <FavoriteBorder fontSize="small" />
+                  )}
+                </IconButton>
+                <CardMedia
+                  component="img"
+                  height="140"
+                  image={imageSrc}
+                  alt={item.title}
+                  sx={{ objectFit: 'contain', bgcolor: 'grey.50', p: 1 }}
+                />
+                <CardContent sx={{ flexGrow: 1, p: 1.5 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      mb: 1,
+                      color: 'text.primary',
+                    }}
+                  >
+                    {item.title}
                   </Typography>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                    {priceNum != null ? `$${priceNum.toFixed(2)}` : ''}
+                  </Typography>
+                  {freeShipping && (
+                    <Typography variant="caption" color="success.main">
+                      Free shipping
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          );
+        })}
       </Grid>
     </Box>
   );

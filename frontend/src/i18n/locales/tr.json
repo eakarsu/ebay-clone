@@ -1,0 +1,44 @@
+{
+  "common": {
+    "search": "Ara",
+    "buy_now": "Hemen Al",
+    "place_bid": "Teklif ver",
+    "add_to_cart": "Sepete ekle",
+    "add_to_watchlist": "Takip listesine ekle",
+    "sign_in": "Giriş yap",
+    "register": "Kayıt ol",
+    "sell": "Sat",
+    "cart": "Sepet",
+    "orders": "Siparişler",
+    "language": "Dil",
+    "currency": "Para birimi",
+    "loading": "Yükleniyor...",
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "continue": "Devam"
+  },
+  "home": {
+    "hero_title": "Milyonlarca üründe harika fırsatlar",
+    "trending": "Şu an popüler",
+    "recommended": "Sana önerilenler"
+  },
+  "product": {
+    "current_bid": "Mevcut teklif",
+    "time_left": "Kalan süre",
+    "bids": "teklif",
+    "ending_soon": "Yakında bitiyor",
+    "shipping": "Kargo",
+    "free_shipping": "Ücretsiz kargo",
+    "condition": "Durum"
+  },
+  "onboarding": {
+    "title": "Satıcı ol",
+    "step_account": "Hesap",
+    "step_identity": "Kimlik doğrulama",
+    "step_payout": "Ödeme yöntemi",
+    "step_tax": "Vergi bilgileri",
+    "step_policies": "Kargo ve iade politikaları",
+    "step_first_listing": "İlk ilanını oluştur",
+    "completed": "Hazırsın — satmaya başla!"
+  }
+}

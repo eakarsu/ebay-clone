@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Typography,
@@ -23,6 +23,7 @@ import {
   ListItem,
   ListItemText,
   ListItemAvatar,
+  IconButton,
 } from '@mui/material';
 import {
   Store,
@@ -43,12 +44,14 @@ import {
   Language,
   Policy,
 } from '@mui/icons-material';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowBack } from '@mui/icons-material';
 import { storeService, reviewService, getImageUrl } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const SellerStore = () => {
   const { username } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
@@ -72,13 +75,43 @@ const SellerStore = () => {
     { id: 6, name: 'Books', count: 56, icon: '📚' },
   ];
 
+  // Track fetch request to prevent race conditions
+  const fetchIdRef = useRef(0);
+
   useEffect(() => {
     if (username) {
       fetchStore();
-      fetchProducts();
       fetchCategories();
     }
   }, [username]);
+
+  // Fetch products with debounce for search
+  useEffect(() => {
+    if (!username) return;
+
+    const fetchId = ++fetchIdRef.current;
+    const debounceTimer = setTimeout(async () => {
+      try {
+        const response = await storeService.getProducts(username, {
+          search: searchQuery,
+          category: selectedCategory
+        });
+
+        // Only update if this is still the latest request
+        if (fetchId === fetchIdRef.current) {
+          const productsData = response.data?.products || response.data || [];
+          setProducts(Array.isArray(productsData) ? productsData : []);
+        }
+      } catch (error) {
+        if (fetchId === fetchIdRef.current) {
+          console.error('Error fetching products:', error);
+          setProducts([]);
+        }
+      }
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [username, searchQuery, selectedCategory]);
 
   const fetchStore = async () => {
     try {
@@ -93,15 +126,6 @@ const SellerStore = () => {
       console.error('Error fetching store:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchProducts = async (params = {}) => {
-    try {
-      const response = await storeService.getProducts(username, { ...params, search: searchQuery });
-      setProducts(response.data || []);
-    } catch (error) {
-      console.error('Error fetching products:', error);
     }
   };
 
@@ -138,11 +162,6 @@ const SellerStore = () => {
     } catch (error) {
       console.error('Error toggling subscription:', error);
     }
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    fetchProducts({ search: searchQuery, category: selectedCategory });
   };
 
   if (loading) {
@@ -196,8 +215,18 @@ const SellerStore = () => {
       </Box>
 
       <Container maxWidth="lg">
+        {/* Back Button */}
+        <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
+          <IconButton onClick={() => navigate(-1)} sx={{ mr: 1 }}>
+            <ArrowBack />
+          </IconButton>
+          <Typography variant="body2" color="text.secondary">
+            Back
+          </Typography>
+        </Box>
+
         {/* Store Info */}
-        <Paper sx={{ mt: -4, mb: 4, p: 3, position: 'relative' }}>
+        <Paper sx={{ mt: 2, mb: 4, p: 3, position: 'relative' }}>
           <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
             <Avatar
               src={store.logoUrl}
@@ -266,22 +295,20 @@ const SellerStore = () => {
 
         {/* Search and Tabs */}
         <Box sx={{ mb: 3 }}>
-          <form onSubmit={handleSearch}>
-            <TextField
-              fullWidth
-              placeholder="Search this store..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ mb: 2 }}
-            />
-          </form>
+          <TextField
+            fullWidth
+            placeholder="Search this store... (live search)"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 2 }}
+          />
 
           <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)}>
             <Tab label="All Items" />
@@ -299,10 +326,7 @@ const SellerStore = () => {
               <Box sx={{ mb: 3, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 <Chip
                   label="All"
-                  onClick={() => {
-                    setSelectedCategory(null);
-                    fetchProducts();
-                  }}
+                  onClick={() => setSelectedCategory(null)}
                   variant={selectedCategory === null ? 'filled' : 'outlined'}
                   color={selectedCategory === null ? 'primary' : 'default'}
                 />
@@ -310,10 +334,7 @@ const SellerStore = () => {
                   <Chip
                     key={cat.id}
                     label={`${cat.name} (${cat.count})`}
-                    onClick={() => {
-                      setSelectedCategory(cat.id);
-                      fetchProducts({ category: cat.id });
-                    }}
+                    onClick={() => setSelectedCategory(cat.id)}
                     variant={selectedCategory === cat.id ? 'filled' : 'outlined'}
                     color={selectedCategory === cat.id ? 'primary' : 'default'}
                   />
@@ -348,10 +369,10 @@ const SellerStore = () => {
                       <CardMedia
                         component="img"
                         height="160"
-                        image={product.images?.[0]?.url || '/placeholder-image.png'}
+                        image={product.primaryImage || product.images?.[0]?.url || product.image_url || 'https://via.placeholder.com/300x200?text=No+Image'}
                         alt={product.title}
                         sx={{ objectFit: 'contain', bgcolor: 'grey.50', p: 1 }}
-                        onError={(e) => { e.target.src = '/placeholder-image.png'; }}
+                        onError={(e) => { e.target.src = 'https://via.placeholder.com/300x200?text=No+Image'; }}
                       />
                       <CardContent sx={{ flexGrow: 1 }}>
                         <Typography
@@ -401,7 +422,6 @@ const SellerStore = () => {
                   onClick={() => {
                     setSelectedCategory(cat.id);
                     setTabValue(0);
-                    fetchProducts({ category: cat.id });
                   }}
                 >
                   <Typography variant="h2" sx={{ mb: 1 }}>

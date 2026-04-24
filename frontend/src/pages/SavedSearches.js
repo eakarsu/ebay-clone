@@ -32,6 +32,7 @@ import {
   Edit,
   PlayArrow,
   Notifications,
+  ArrowBack,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -123,6 +124,9 @@ const SavedSearches = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+          <ArrowBack />
+        </IconButton>
         <Search sx={{ mr: 2, fontSize: 32, color: 'primary.main' }} />
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
           Saved Searches

@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { authenticator } = require('otplib');
 const QRCode = require('qrcode');
 const { pool } = require('../config/database');
+const { validatePassword } = require('../utils/passwordValidator');
 
 // Configure authenticator with a larger time window to handle clock drift
 authenticator.options = {
@@ -29,6 +30,12 @@ const register = async (req, res, next) => {
 
     if (existingUser.rows.length > 0) {
       return res.status(400).json({ error: 'User already exists with this email or username' });
+    }
+
+    // Validate password strength
+    const passwordCheck = validatePassword(password, username);
+    if (!passwordCheck.isValid) {
+      return res.status(400).json({ error: 'Password does not meet requirements', details: passwordCheck.errors, strength: passwordCheck.strength });
     }
 
     // Hash password
@@ -339,6 +346,12 @@ const resetPassword = async (req, res, next) => {
 
     const resetToken = result.rows[0];
 
+    // Validate password strength
+    const passwordCheck = validatePassword(newPassword);
+    if (!passwordCheck.isValid) {
+      return res.status(400).json({ error: 'Password does not meet requirements', details: passwordCheck.errors, strength: passwordCheck.strength });
+    }
+
     // Hash new password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(newPassword, salt);
@@ -374,6 +387,12 @@ const changePassword = async (req, res, next) => {
     const isMatch = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
     if (!isMatch) {
       return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+
+    // Validate password strength
+    const passwordCheck = validatePassword(newPassword, req.user.username);
+    if (!passwordCheck.isValid) {
+      return res.status(400).json({ error: 'Password does not meet requirements', details: passwordCheck.errors, strength: passwordCheck.strength });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -596,9 +615,38 @@ const regenerateBackupCodes = async (req, res, next) => {
   }
 };
 
+// Logout - blacklist current token
+const logout = async (req, res, next) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(400).json({ error: 'No token provided' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Get token expiry from decoded JWT
+    const decoded = jwt.decode(token);
+    const expiresAt = new Date(decoded.exp * 1000);
+
+    await pool.query(
+      `INSERT INTO token_blacklist (token_hash, user_id, reason, ip_address, user_agent, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (token_hash) DO NOTHING`,
+      [tokenHash, req.user.id, 'logout', req.ip, req.headers['user-agent'], expiresAt]
+    );
+
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
+  logout,
   getProfile,
   updateProfile,
   verifyEmail,

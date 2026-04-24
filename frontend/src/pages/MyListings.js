@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Paper,
@@ -41,6 +41,7 @@ import {
   Replay,
   Delete,
   CloudUpload,
+  ArrowBack,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -62,34 +63,54 @@ const MyListings = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, type: '', product: null });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
+  // Track if component is mounted
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
-    fetchListings();
-  }, [page, rowsPerPage, statusFilter, typeFilter]);
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-  const fetchListings = async () => {
-    try {
-      setLoading(true);
-      let params = `?page=${page + 1}&limit=${rowsPerPage}`;
-      if (statusFilter) params += `&status=${statusFilter}`;
-      if (typeFilter) params += `&type=${typeFilter}`;
-      if (search) params += `&search=${encodeURIComponent(search)}`;
-
-      const response = await api.get(`/seller/products${params}`);
-      setProducts(response.data.products || []);
-      setTotal(response.data.pagination?.total || 0);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load listings');
-    } finally {
-      setLoading(false);
+  // Single fetch effect
+  useEffect(() => {
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
-  };
+    abortControllerRef.current = new AbortController();
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setPage(0);
-    fetchListings();
-  };
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError('');
+
+        let params = `?page=${page + 1}&limit=${rowsPerPage}`;
+        if (statusFilter) params += `&status=${statusFilter}`;
+        if (typeFilter) params += `&type=${typeFilter}`;
+        if (search) params += `&search=${encodeURIComponent(search)}`;
+
+        const response = await api.get(`/seller/products${params}`);
+
+        if (isMountedRef.current) {
+          setProducts(response.data.products || []);
+          setTotal(response.data.pagination?.total || 0);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (isMountedRef.current && err.name !== 'CanceledError') {
+          setError(err.response?.data?.error || 'Failed to load listings');
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchData();
+  }, [page, rowsPerPage, statusFilter, typeFilter, search, refetchTrigger]);
 
   const getStatusColor = (status) => {
     const colors = {
@@ -137,7 +158,7 @@ const MyListings = () => {
     try {
       await api.put(`/seller/products/${confirmDialog.product.id}/end`);
       setSnackbar({ open: true, message: 'Listing ended successfully', severity: 'success' });
-      fetchListings();
+      setRefetchTrigger(prev => prev + 1);
     } catch (err) {
       setSnackbar({ open: true, message: err.response?.data?.error || 'Failed to end listing', severity: 'error' });
     }
@@ -162,7 +183,7 @@ const MyListings = () => {
     try {
       await api.delete(`/seller/products/${confirmDialog.product.id}`);
       setSnackbar({ open: true, message: 'Listing deleted successfully', severity: 'success' });
-      fetchListings();
+      setRefetchTrigger(prev => prev + 1);
     } catch (err) {
       setSnackbar({ open: true, message: err.response?.data?.error || 'Failed to delete listing', severity: 'error' });
     }
@@ -177,9 +198,14 @@ const MyListings = () => {
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          My Listings
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+            <ArrowBack />
+          </IconButton>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            My Listings
+          </Typography>
+        </Box>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button
             variant="outlined"
@@ -232,25 +258,20 @@ const MyListings = () => {
       {/* Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-          <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, flex: 1, minWidth: 200 }}>
-            <TextField
-              size="small"
-              placeholder="Search listings..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ flex: 1 }}
-            />
-            <Button type="submit" variant="outlined" size="small">
-              Search
-            </Button>
-          </form>
+          <TextField
+            size="small"
+            placeholder="Search listings... (live search)"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ flex: 1, minWidth: 200 }}
+          />
 
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Status</InputLabel>
@@ -305,11 +326,11 @@ const MyListings = () => {
 
       {/* Listings Table */}
       <Paper>
-        {loading ? (
+        {loading && products.length === 0 ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
             <CircularProgress />
           </Box>
-        ) : products.length === 0 ? (
+        ) : !loading && products.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 8 }}>
             <Typography variant="h6" color="text.secondary" gutterBottom>
               No listings found

@@ -1,5 +1,15 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { pool } = require('../config/database');
+
+const checkTokenBlacklist = async (token) => {
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const result = await pool.query(
+    'SELECT id FROM token_blacklist WHERE token_hash = $1 AND expires_at > NOW()',
+    [tokenHash]
+  );
+  return result.rows.length > 0;
+};
 
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -11,6 +21,12 @@ const authenticateToken = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Check if token is blacklisted
+    const isBlacklisted = await checkTokenBlacklist(token);
+    if (isBlacklisted) {
+      return res.status(401).json({ error: 'Token has been revoked' });
+    }
 
     const result = await pool.query(
       'SELECT id, username, email, first_name, last_name, is_seller, avatar_url FROM users WHERE id = $1 AND status = $2',
@@ -27,7 +43,9 @@ const authenticateToken = async (req, res, next) => {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Token expired' });
     }
-    return res.status(403).json({ error: 'Invalid token' });
+    // Invalid/untrusted token is an authentication failure (401), not authorization (403).
+    // The frontend interceptor clears the stale token and redirects to /login on 401.
+    return res.status(401).json({ error: 'Invalid token' });
   }
 };
 
@@ -41,6 +59,12 @@ const optionalAuth = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Silently skip blacklisted tokens for optional auth
+    const isBlacklisted = await checkTokenBlacklist(token);
+    if (isBlacklisted) {
+      return next();
+    }
 
     const result = await pool.query(
       'SELECT id, username, email, first_name, last_name, is_seller, avatar_url FROM users WHERE id = $1 AND status = $2',

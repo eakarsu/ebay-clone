@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -7,13 +7,15 @@ import {
   CircularProgress,
   Box,
   Pagination,
+  IconButton,
 } from '@mui/material';
-import { Favorite as WatchlistIcon } from '@mui/icons-material';
+import { Favorite as WatchlistIcon, ArrowBack } from '@mui/icons-material';
 import { watchlistService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ProductGrid from '../components/Products/ProductGrid';
 
 const Watchlist = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,14 +102,21 @@ const Watchlist = () => {
 
   const products = items.map((item) => ({
     ...item.product,
+    image_url: item.product.image, // Map 'image' to 'image_url' for ProductCard
+    primaryImage: item.product.image,
     seller: item.seller,
   }));
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-        Watchlist
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+          <ArrowBack />
+        </IconButton>
+        <Typography variant="h4" sx={{ fontWeight: 600 }}>
+          Watchlist
+        </Typography>
+      </Box>
       <Typography color="text.secondary" sx={{ mb: 4 }}>
         {pagination.total} items
       </Typography>

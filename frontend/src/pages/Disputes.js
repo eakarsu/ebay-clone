@@ -25,8 +25,9 @@ import {
   MenuItem,
   Tabs,
   Tab,
+  IconButton,
 } from '@mui/material';
-import { Add, Visibility } from '@mui/icons-material';
+import { Add, Visibility, ArrowBack } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
@@ -121,9 +122,14 @@ const Disputes = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          My Disputes
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+            <ArrowBack />
+          </IconButton>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            My Disputes
+          </Typography>
+        </Box>
         <Button
           variant="contained"
           startIcon={<Add />}

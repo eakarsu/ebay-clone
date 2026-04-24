@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # eBay Clone - Start Script
-# This script checks for PostgreSQL, sets up the database, and starts both backend and frontend
+# This script starts the application with hot reload, seeds data, and cleans ports
 
 set -e
 
@@ -10,6 +10,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Project directories
@@ -17,25 +18,41 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$SCRIPT_DIR/backend"
 FRONTEND_DIR="$SCRIPT_DIR/frontend"
 DATABASE_DIR="$SCRIPT_DIR/database"
+ROOT_ENV="$SCRIPT_DIR/.env"
 
-# Application ports
-BACKEND_PORT=4000
-FRONTEND_PORT=3000
+# Load environment variables from root .env
+if [ -f "$ROOT_ENV" ]; then
+    echo -e "${CYAN}Loading environment from root .env file...${NC}"
+    set -a
+    source "$ROOT_ENV"
+    set +a
+else
+    echo -e "${RED}Error: Root .env file not found at $ROOT_ENV${NC}"
+    echo -e "${YELLOW}Please create .env file with required configuration${NC}"
+    exit 1
+fi
 
-# Database configuration (can be overridden by .env file)
-DB_HOST="${DB_HOST:-localhost}"
-DB_PORT="${DB_PORT:-5432}"
-DB_NAME="${DB_NAME:-ebay_clone}"
-DB_USER="${DB_USER:-postgres}"
-DB_PASSWORD="${DB_PASSWORD:-postgres}"
+# Application ports (from .env or defaults, never use 5000)
+BACKEND_PORT="${BACKEND_PORT:-4000}"
+FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+
+# Ensure we don't use port 5000
+if [ "$BACKEND_PORT" = "5000" ]; then
+    BACKEND_PORT=4000
+fi
+if [ "$FRONTEND_PORT" = "5000" ]; then
+    FRONTEND_PORT=3000
+fi
 
 echo -e "${BLUE}"
-echo "╔═══════════════════════════════════════════════════════════╗"
-echo "║                                                           ║"
-echo "║                    eBay Clone                             ║"
-echo "║              Professional Marketplace                     ║"
-echo "║                                                           ║"
-echo "╚═══════════════════════════════════════════════════════════╝"
+echo "╔════════════════════════════════════════════════════════════════════╗"
+echo "║                                                                    ║"
+echo "║                         eBay Clone                                 ║"
+echo "║                  Professional Marketplace                          ║"
+echo "║                                                                    ║"
+echo "║   Features: AI-Powered • Hot Reload • PostgreSQL • OpenRouter     ║"
+echo "║                                                                    ║"
+echo "╚════════════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
 # Function to check if a command exists
@@ -61,19 +78,24 @@ kill_port() {
     fi
 }
 
-# Function to clean up ports before starting
-clean_ports() {
-    echo -e "${YELLOW}Cleaning up ports...${NC}"
+# Function to clean up ALL potentially used ports
+clean_all_ports() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}Cleaning up all used ports...${NC}"
     kill_port $FRONTEND_PORT
     kill_port $BACKEND_PORT
+    kill_port 5000  # Always clean 5000 just in case
+    kill_port 5001
+    kill_port 8080
+    echo -e "${GREEN}✓ All ports cleaned${NC}"
     echo ""
 }
 
 # Function to check if PostgreSQL is running
 check_postgres() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${YELLOW}Checking PostgreSQL connection...${NC}"
 
-    # Try to connect to PostgreSQL
     if command_exists psql; then
         if PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -c '\q' 2>/dev/null; then
             echo -e "${GREEN}✓ PostgreSQL is running and accessible${NC}"
@@ -93,10 +115,6 @@ check_postgres() {
     echo "    sudo apt install postgresql postgresql-contrib"
     echo "    sudo systemctl start postgresql"
     echo ""
-    echo "  Windows:"
-    echo "    Download from https://www.postgresql.org/download/windows/"
-    echo "    Start PostgreSQL service from Services panel"
-    echo ""
     echo -e "${YELLOW}Connection details:${NC}"
     echo "  Host: $DB_HOST"
     echo "  Port: $DB_PORT"
@@ -108,6 +126,7 @@ check_postgres() {
 
 # Function to create database if it doesn't exist
 setup_database() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${YELLOW}Setting up database...${NC}"
 
     # Check if database exists
@@ -126,8 +145,59 @@ setup_database() {
     return 0
 }
 
+# Function to run database schema
+run_schema() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}Running database schema and migrations...${NC}"
+
+    if [ -f "$DATABASE_DIR/schema.sql" ]; then
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$DATABASE_DIR/schema.sql" 2>/dev/null || true
+        echo -e "${GREEN}✓ Schema applied${NC}"
+    fi
+
+    if [ -f "$DATABASE_DIR/schema_additions.sql" ]; then
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$DATABASE_DIR/schema_additions.sql" 2>/dev/null || true
+        echo -e "${GREEN}✓ Schema additions applied${NC}"
+    fi
+
+    # Run all migrations
+    for migration in "$DATABASE_DIR/migrations"/*.sql; do
+        if [ -f "$migration" ]; then
+            PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$migration" 2>/dev/null || true
+            echo -e "${GREEN}✓ Migration applied: $(basename $migration)${NC}"
+        fi
+    done
+}
+
+# Function to seed ALL data automatically
+seed_all_data() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}Seeding database with comprehensive data (15+ items per feature)...${NC}"
+
+    # Run the comprehensive seed file
+    if [ -f "$DATABASE_DIR/seed_complete.sql" ]; then
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$DATABASE_DIR/seed_complete.sql" 2>/dev/null || true
+        echo -e "${GREEN}✓ Complete seed data loaded${NC}"
+    fi
+
+    # Run security features seed
+    if [ -f "$DATABASE_DIR/seed_security_features.sql" ]; then
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$DATABASE_DIR/seed_security_features.sql" 2>/dev/null || true
+        echo -e "${GREEN}✓ Security features seed data loaded${NC}"
+    fi
+
+    echo ""
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}Test Accounts Created:${NC}"
+    echo -e "${CYAN}  Buyer:  ${NC}buyer@ebay.com / password123"
+    echo -e "${CYAN}  Seller: ${NC}seller@ebay.com / password123"
+    echo -e "${CYAN}  Admin:  ${NC}admin@ebay.com / password123"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
 # Function to check and install Node.js dependencies
 install_dependencies() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${YELLOW}Checking Node.js dependencies...${NC}"
 
     if ! command_exists node; then
@@ -152,8 +222,10 @@ install_dependencies() {
     # Install backend dependencies
     echo -e "${YELLOW}Installing backend dependencies...${NC}"
     cd "$BACKEND_DIR"
-    if [ ! -d "node_modules" ]; then
+    if [ ! -d "node_modules" ] || [ "$1" = "--fresh" ]; then
         npm install
+        # Install nodemon for hot reload
+        npm install --save-dev nodemon 2>/dev/null || true
     else
         echo -e "${GREEN}✓ Backend dependencies already installed${NC}"
     fi
@@ -161,7 +233,7 @@ install_dependencies() {
     # Install frontend dependencies
     echo -e "${YELLOW}Installing frontend dependencies...${NC}"
     cd "$FRONTEND_DIR"
-    if [ ! -d "node_modules" ]; then
+    if [ ! -d "node_modules" ] || [ "$1" = "--fresh" ]; then
         npm install
     else
         echo -e "${GREEN}✓ Frontend dependencies already installed${NC}"
@@ -170,56 +242,70 @@ install_dependencies() {
     return 0
 }
 
-# Function to seed the database
-seed_database() {
-    echo -e "${YELLOW}Do you want to seed the database with sample data? (y/n)${NC}"
-    read -r response
+# Function to copy .env to subdirectories for compatibility
+setup_env_files() {
+    echo -e "${YELLOW}Setting up environment files...${NC}"
 
-    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        echo -e "${YELLOW}Seeding database...${NC}"
-        cd "$BACKEND_DIR"
-        npm run seed
-        echo -e "${GREEN}✓ Database seeded with sample data${NC}"
-        echo ""
-        echo -e "${GREEN}Test accounts created:${NC}"
-        echo "  Buyer: jane@example.com / password123"
-        echo "  Seller: techdeals@example.com / password123"
-    fi
+    # Create symlinks or copies for backend and frontend
+    cp "$ROOT_ENV" "$BACKEND_DIR/.env" 2>/dev/null || true
+
+    # Create frontend .env with REACT_APP_ prefixed variables
+    cat > "$FRONTEND_DIR/.env" << EOF
+REACT_APP_API_URL=http://localhost:$BACKEND_PORT/api
+REACT_APP_STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY
+REACT_APP_APP_NAME=eBay Clone
+EOF
+
+    echo -e "${GREEN}✓ Environment files configured${NC}"
 }
 
-# Function to start the application
+# Function to start the application with hot reload
 start_application() {
     echo ""
-    echo -e "${GREEN}Starting eBay Clone...${NC}"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}Starting eBay Clone with Hot Reload...${NC}"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 
-    # Start backend
-    echo -e "${YELLOW}Starting backend server on port $BACKEND_PORT...${NC}"
+    # Start backend with nodemon for hot reload
+    echo -e "${YELLOW}Starting backend server with hot reload on port $BACKEND_PORT...${NC}"
     cd "$BACKEND_DIR"
-    PORT=$BACKEND_PORT npm start &
+
+    # Check if nodemon is available, otherwise use node with watch
+    if command_exists npx && [ -f "node_modules/.bin/nodemon" ]; then
+        PORT=$BACKEND_PORT npx nodemon --watch src --ext js,json src/index.js &
+    else
+        # Fallback to node with --watch flag (Node 18+)
+        PORT=$BACKEND_PORT node --watch src/index.js 2>/dev/null &
+        if [ $? -ne 0 ]; then
+            PORT=$BACKEND_PORT node src/index.js &
+        fi
+    fi
     BACKEND_PID=$!
 
     # Wait for backend to start
     sleep 3
 
-    # Start frontend
-    echo -e "${YELLOW}Starting frontend on port $FRONTEND_PORT...${NC}"
+    # Start frontend with hot reload (React's default behavior)
+    echo -e "${YELLOW}Starting frontend with hot reload on port $FRONTEND_PORT...${NC}"
     cd "$FRONTEND_DIR"
-    PORT=$FRONTEND_PORT npm start &
+    PORT=$FRONTEND_PORT BROWSER=none npm start &
     FRONTEND_PID=$!
 
     echo ""
-    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║                                                           ║${NC}"
-    echo -e "${GREEN}║   eBay Clone is starting!                                 ║${NC}"
-    echo -e "${GREEN}║                                                           ║${NC}"
-    echo -e "${GREEN}║   Frontend: http://localhost:$FRONTEND_PORT                         ║${NC}"
-    echo -e "${GREEN}║   Backend:  http://localhost:$BACKEND_PORT                         ║${NC}"
-    echo -e "${GREEN}║   API Docs: http://localhost:$BACKEND_PORT/api/health              ║${NC}"
-    echo -e "${GREEN}║                                                           ║${NC}"
-    echo -e "${GREEN}║   Press Ctrl+C to stop                                    ║${NC}"
-    echo -e "${GREEN}║                                                           ║${NC}"
-    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${GREEN}╔════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║                                                                    ║${NC}"
+    echo -e "${GREEN}║   eBay Clone is running with HOT RELOAD!                          ║${NC}"
+    echo -e "${GREEN}║                                                                    ║${NC}"
+    echo -e "${GREEN}║   Frontend:  ${CYAN}http://localhost:$FRONTEND_PORT${GREEN}                              ║${NC}"
+    echo -e "${GREEN}║   Backend:   ${CYAN}http://localhost:$BACKEND_PORT${GREEN}                              ║${NC}"
+    echo -e "${GREEN}║   API:       ${CYAN}http://localhost:$BACKEND_PORT/api${GREEN}                          ║${NC}"
+    echo -e "${GREEN}║                                                                    ║${NC}"
+    echo -e "${GREEN}║   ${YELLOW}Code changes will automatically reload!${GREEN}                        ║${NC}"
+    echo -e "${GREEN}║                                                                    ║${NC}"
+    echo -e "${GREEN}║   Press ${RED}Ctrl+C${GREEN} to stop                                            ║${NC}"
+    echo -e "${GREEN}║                                                                    ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
     # Handle cleanup on exit
@@ -232,20 +318,26 @@ start_application() {
 # Cleanup function
 cleanup() {
     echo ""
-    echo -e "${YELLOW}Shutting down...${NC}"
+    echo -e "${YELLOW}Shutting down eBay Clone...${NC}"
+
     if [ ! -z "$BACKEND_PID" ]; then
         kill $BACKEND_PID 2>/dev/null || true
     fi
     if [ ! -z "$FRONTEND_PID" ]; then
         kill $FRONTEND_PID 2>/dev/null || true
     fi
-    echo -e "${GREEN}Goodbye!${NC}"
+
+    # Clean up ports
+    kill_port $BACKEND_PORT 2>/dev/null || true
+    kill_port $FRONTEND_PORT 2>/dev/null || true
+
+    echo -e "${GREEN}Goodbye! Thank you for using eBay Clone.${NC}"
 }
 
 # Main execution
 main() {
-    # Clean up ports first
-    clean_ports
+    # Clean up ALL ports first
+    clean_all_ports
 
     # Check PostgreSQL
     if ! check_postgres; then
@@ -257,17 +349,24 @@ main() {
         exit 1
     fi
 
+    # Run schema
+    run_schema
+
     # Install dependencies
-    if ! install_dependencies; then
+    if ! install_dependencies "$1"; then
         exit 1
     fi
 
-    # Check if database needs seeding (check if users table has data)
+    # Setup environment files for subdirectories
+    setup_env_files
+
+    # Check if database needs seeding (auto-seed without prompting)
     USERS_COUNT=$(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT COUNT(*) FROM users;" 2>/dev/null || echo "0")
 
-    if [ "$USERS_COUNT" = "0" ] || [ -z "$USERS_COUNT" ]; then
-        echo -e "${YELLOW}Database appears to be empty.${NC}"
-        seed_database
+    if [ "$USERS_COUNT" = "0" ] || [ -z "$USERS_COUNT" ] || [ "$1" = "--reseed" ]; then
+        seed_all_data
+    else
+        echo -e "${GREEN}✓ Database already has $USERS_COUNT users${NC}"
     fi
 
     # Start the application

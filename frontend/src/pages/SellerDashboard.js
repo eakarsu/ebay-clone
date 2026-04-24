@@ -32,6 +32,7 @@ import {
   Visibility,
   Edit,
   LocalShipping,
+  ArrowBack,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -192,9 +193,14 @@ const SellerDashboard = () => {
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          Seller Dashboard
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+            <ArrowBack />
+          </IconButton>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            Seller Dashboard
+          </Typography>
+        </Box>
         <Button variant="contained" onClick={() => navigate('/sell')}>
           List New Item
         </Button>
@@ -241,6 +247,41 @@ const SellerDashboard = () => {
           />
         </Grid>
       </Grid>
+
+      {/* Profit Summary Card */}
+      {dashboard?.profitSummary && (
+        <Paper sx={{ p: 3, mb: 4, bgcolor: '#f8f9fa' }}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            Profit Summary (Items with cost tracked)
+          </Typography>
+          <Grid container spacing={3}>
+            <Grid item xs={6} sm={3}>
+              <Typography variant="body2" color="text.secondary">Total Revenue</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                ${dashboard.profitSummary.totalRevenue?.toLocaleString() || '0'}
+              </Typography>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Typography variant="body2" color="text.secondary">Total Cost</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                ${dashboard.profitSummary.totalCost?.toLocaleString() || '0'}
+              </Typography>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Typography variant="body2" color="text.secondary">Total Profit</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: 'success.main' }}>
+                ${dashboard.profitSummary.totalProfit?.toLocaleString() || '0'}
+              </Typography>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Typography variant="body2" color="text.secondary">Avg Profit Margin</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: 'success.main' }}>
+                {dashboard.profitSummary.avgMargin?.toFixed(1) || '0'}%
+              </Typography>
+            </Grid>
+          </Grid>
+        </Paper>
+      )}
 
       {/* Tabs */}
       <Paper sx={{ mb: 3 }}>

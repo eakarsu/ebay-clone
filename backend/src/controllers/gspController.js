@@ -139,7 +139,8 @@ const updateDomesticShipment = async (req, res) => {
 const getUserGspShipments = async (req, res) => {
   try {
     const { type = 'buyer' } = req.query;
-    const whereClause = type === 'seller' ? 'seller_id = $1' : 'buyer_id = $1';
+    // Both gsp_shipments and orders have buyer_id / seller_id, so qualify with g. to avoid ambiguity.
+    const whereClause = type === 'seller' ? 'g.seller_id = $1' : 'g.buyer_id = $1';
 
     const result = await pool.query(
       `SELECT g.*, o.order_number

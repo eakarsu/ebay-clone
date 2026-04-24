@@ -10,10 +10,12 @@ import {
   Breadcrumbs,
   CircularProgress,
   Pagination,
+  Button,
 } from '@mui/material';
-import { NavigateNext } from '@mui/icons-material';
-import { categoryService, productService } from '../services/api';
+import { NavigateNext, Notifications, NotificationsActive } from '@mui/icons-material';
+import { categoryService, productService, categoryFollowService } from '../services/api';
 import ProductGrid from '../components/Products/ProductGrid';
+import { useAuth } from '../context/AuthContext';
 
 const Category = () => {
   const { slug } = useParams();
@@ -22,6 +24,28 @@ const Category = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 1 });
+  const [following, setFollowing] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user || !category?.id) return;
+    categoryFollowService.isFollowing(category.id)
+      .then(({ data }) => setFollowing(!!data.following))
+      .catch(() => {});
+  }, [user, category?.id]);
+
+  const toggleFollow = async () => {
+    if (!user) return;
+    try {
+      if (following) {
+        await categoryFollowService.unfollow(category.id);
+        setFollowing(false);
+      } else {
+        await categoryFollowService.follow(category.id);
+        setFollowing(true);
+      }
+    } catch (_) { /* ignore */ }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -77,9 +101,21 @@ const Category = () => {
       </Breadcrumbs>
 
       {/* Category Header */}
-      <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-        {category.name}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, flexWrap: 'wrap' }}>
+        <Typography variant="h4" sx={{ fontWeight: 600 }}>
+          {category.name}
+        </Typography>
+        {user && (
+          <Button
+            variant={following ? 'contained' : 'outlined'}
+            startIcon={following ? <NotificationsActive /> : <Notifications />}
+            onClick={toggleFollow}
+            size="small"
+          >
+            {following ? 'Following' : 'Follow'}
+          </Button>
+        )}
+      </Box>
       {category.description && (
         <Typography color="text.secondary" sx={{ mb: 4 }}>
           {category.description}

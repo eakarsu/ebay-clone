@@ -1,15 +1,19 @@
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const { testConnection } = require('./config/database');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const realtime = require('./realtime/socket');
 
 // Import routes
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
+const searchRoutes = require('./routes/search');
 const categoryRoutes = require('./routes/categories');
 const bidRoutes = require('./routes/bids');
 const orderRoutes = require('./routes/orders');
@@ -54,7 +58,50 @@ const membershipRoutes = require('./routes/membershipRoutes');
 const localPickupRoutes = require('./routes/localPickupRoutes');
 const bestMatchRoutes = require('./routes/bestMatchRoutes');
 
+// AI Routes (OpenRouter)
+const aiRoutes = require('./routes/ai');
+
+// Latest eBay 2025-2026 Features
+const dealsRoutes = require('./routes/deals');
+const liveRoutes = require('./routes/live');
+const teamRoutes = require('./routes/team');
+const vaultRoutes = require('./routes/vault');
+
+// Security Feature Routes
+const securityAuditRoutes = require('./routes/securityAudit');
+const tokenBlacklistRoutes = require('./routes/tokenBlacklist');
+const errorLogRoutes = require('./routes/errorLogs');
+const passwordPolicyRoutes = require('./routes/passwordPolicies');
+const validationRuleRoutes = require('./routes/validationRules');
+
+// Extension feature routes
+const listingTemplateRoutes = require('./routes/listingTemplates');
+const vacationRoutes = require('./routes/vacation');
+const compareRoutes = require('./routes/compare');
+const giftCardRoutes = require('./routes/giftCards');
+const publicWishlistRoutes = require('./routes/publicWishlist');
+const sellerEarningsRoutes = require('./routes/sellerEarnings');
+
+// Round 4 feature routes
+const bundleDiscountRoutes = require('./routes/bundleDiscounts');
+const categoryFollowRoutes = require('./routes/categoryFollows');
+const auctionChatRoutes = require('./routes/auctionChat');
+
+// Platform feature routes (Wave 3-6)
+const publicV1Routes = require('./routes/publicV1');
+const apiKeyRoutes = require('./routes/apiKeys');
+const analyticsRoutes = require('./routes/analytics');
+const experimentRoutes = require('./routes/experiments');
+const promotionRoutes = require('./routes/promotions');
+const onboardingRoutes = require('./routes/onboarding');
+
 const app = express();
+
+// Trust proxy headers from loopback (localhost) only. Needed so express-rate-limit
+// can correctly derive the client IP when running behind CRA dev-server proxy or
+// similar local reverse proxies that forward X-Forwarded-For.
+// Do NOT change to `true` in production — that would let clients spoof their IP.
+app.set('trust proxy', 'loopback');
 
 // Rate limiting - increased for development
 const limiter = rateLimit({
@@ -62,6 +109,21 @@ const limiter = rateLimit({
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
   message: { error: 'Too many requests, please try again later.' },
 });
+
+// Security headers with Helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'", process.env.FRONTEND_URL || 'http://localhost:3000'],
+    },
+  },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
 
 // Middleware
 app.use(cors({
@@ -82,6 +144,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/search', searchRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/bids', bidRoutes);
 app.use('/api/orders', orderRoutes);
@@ -126,6 +189,43 @@ app.use('/api/membership', membershipRoutes);
 app.use('/api/local-pickup', localPickupRoutes);
 app.use('/api/best-match', bestMatchRoutes);
 
+// AI Routes (OpenRouter powered)
+app.use('/api/ai', aiRoutes);
+
+// Latest eBay 2025-2026 Feature Routes
+app.use('/api/deals', dealsRoutes);
+app.use('/api/live', liveRoutes);
+app.use('/api/team', teamRoutes);
+app.use('/api/vault', vaultRoutes);
+
+// Security Feature Routes
+app.use('/api/security-audit', securityAuditRoutes);
+app.use('/api/token-blacklist', tokenBlacklistRoutes);
+app.use('/api/error-logs', errorLogRoutes);
+app.use('/api/password-policies', passwordPolicyRoutes);
+app.use('/api/validation-rules', validationRuleRoutes);
+
+// Extension feature routes
+app.use('/api/listing-templates', listingTemplateRoutes);
+app.use('/api/vacation', vacationRoutes);
+app.use('/api/compare', compareRoutes);
+app.use('/api/gift-cards', giftCardRoutes);
+app.use('/api/public-wishlist', publicWishlistRoutes);
+app.use('/api/seller/earnings', sellerEarningsRoutes);
+
+// Round 4 features
+app.use('/api/bundle-discounts', bundleDiscountRoutes);
+app.use('/api/category-follows', categoryFollowRoutes);
+app.use('/api/auction-chat', auctionChatRoutes);
+
+// Platform feature routes (Wave 3-6)
+app.use('/api/v1', publicV1Routes);
+app.use('/api/api-keys', apiKeyRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/experiments', experimentRoutes);
+app.use('/api/promotions', promotionRoutes);
+app.use('/api/seller-onboarding', onboardingRoutes);
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -135,7 +235,7 @@ app.get('/api/health', (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 4000;
 
 const startServer = async () => {
   const dbConnected = await testConnection();
@@ -144,9 +244,41 @@ const startServer = async () => {
     process.exit(1);
   }
 
-  app.listen(PORT, () => {
+  const server = http.createServer(app);
+  realtime.init(server);
+
+  server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`Socket.IO listening on /socket.io`);
+
+    // Start scheduled jobs (digests, saved-search alerts)
+    try {
+      require('./jobs/digestScheduler').start();
+    } catch (err) {
+      console.warn('Digest scheduler failed to start:', err.message);
+    }
+
+    // Cleanup expired blacklisted tokens every hour
+    setInterval(async () => {
+      try {
+        const { pool } = require('./config/database');
+        const result = await pool.query('DELETE FROM token_blacklist WHERE expires_at < NOW()');
+        if (result.rowCount > 0) {
+          console.log(`Cleaned up ${result.rowCount} expired blacklisted tokens`);
+        }
+      } catch (err) {
+        // Silently ignore cleanup errors
+      }
+    }, 60 * 60 * 1000);
+
+    // Cleanup expired cart reservations every minute so stock returns quickly.
+    setInterval(async () => {
+      try {
+        const { cleanupExpired } = require('./services/cartReservations');
+        await cleanupExpired();
+      } catch (err) { /* silent */ }
+    }, 60 * 1000);
   });
 };
 

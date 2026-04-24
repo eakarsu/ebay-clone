@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { maybeAutoReply } = require('../services/vacationAutoReply');
 
 const getConversations = async (req, res, next) => {
   try {
@@ -71,7 +72,7 @@ const getMessages = async (req, res, next) => {
     }
 
     const result = await pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.created_at, m.is_read,
+      `SELECT m.id, m.sender_id, m.body, m.created_at, m.is_read, m.is_auto_reply,
               p.id as product_id, p.title as product_title
        FROM messages m
        LEFT JOIN products p ON m.product_id = p.id
@@ -95,6 +96,7 @@ const getMessages = async (req, res, next) => {
         body: m.body,
         createdAt: m.created_at,
         isRead: m.is_read,
+        isAutoReply: m.is_auto_reply,
         isMine: m.sender_id === req.user.id,
         product: m.product_id ? {
           id: m.product_id,
@@ -135,6 +137,14 @@ const sendMessage = async (req, res, next) => {
       [recipientId, `You have a new message from ${req.user.username}`, `/messages/${req.user.id}`]
     );
 
+    // If recipient is on vacation, drop a single auto-reply (dedup'd per 24h).
+    const autoReply = await maybeAutoReply({
+      senderId: req.user.id,
+      recipientId,
+      productId,
+      orderId,
+    });
+
     res.status(201).json({
       message: 'Message sent',
       data: {
@@ -142,6 +152,7 @@ const sendMessage = async (req, res, next) => {
         body: result.rows[0].body,
         createdAt: result.rows[0].created_at,
       },
+      autoReply: autoReply ? { id: autoReply.id, createdAt: autoReply.created_at } : null,
     });
   } catch (error) {
     next(error);
@@ -182,7 +193,7 @@ const getConversationMessages = async (req, res, next) => {
     if (convResult.rows.length === 0) {
       // If not found by message ID, try treating conversationId as other_user_id directly
       const result = await pool.query(
-        `SELECT m.id, m.sender_id, m.body as content, m.created_at,
+        `SELECT m.id, m.sender_id, m.body as content, m.created_at, m.is_auto_reply,
                 m.sender_id = $1 as is_own
          FROM messages m
          WHERE (m.sender_id = $1 AND m.recipient_id = $2) OR (m.sender_id = $2 AND m.recipient_id = $1)
@@ -204,6 +215,7 @@ const getConversationMessages = async (req, res, next) => {
           content: m.content,
           createdAt: m.created_at,
           isOwn: m.is_own,
+          isAutoReply: m.is_auto_reply,
         })),
       });
     }
@@ -292,6 +304,13 @@ const replyToConversation = async (req, res, next) => {
       // Ignore notification errors
     }
 
+    // Auto-reply if recipient is on vacation.
+    const autoReply = await maybeAutoReply({
+      senderId: req.user.id,
+      recipientId,
+      productId,
+    });
+
     res.status(201).json({
       message: 'Message sent',
       data: {
@@ -300,6 +319,7 @@ const replyToConversation = async (req, res, next) => {
         createdAt: result.rows[0].created_at,
         isOwn: true,
       },
+      autoReply: autoReply ? { id: autoReply.id, createdAt: autoReply.created_at } : null,
     });
   } catch (error) {
     next(error);

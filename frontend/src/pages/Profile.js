@@ -16,6 +16,7 @@ import {
   ListItemIcon,
   ListItemText,
   ListItemButton,
+  IconButton,
 } from '@mui/material';
 import {
   Person,
@@ -29,6 +30,7 @@ import {
   Inventory,
   LocationOn,
   CreditCard,
+  ArrowBack,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -137,9 +139,14 @@ const Profile = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" sx={{ fontWeight: 700, mb: 4 }}>
-        My Account
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+          <ArrowBack />
+        </IconButton>
+        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+          My Account
+        </Typography>
+      </Box>
 
       <Grid container spacing={3}>
         {/* Sidebar */}

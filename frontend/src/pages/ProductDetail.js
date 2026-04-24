@@ -47,11 +47,14 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { productService, bidService, watchlistService, recentlyViewedService, getImageUrl } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import useAuctionSocket from '../hooks/useAuctionSocket';
 
 // Feature Components
 import MakeOffer from '../components/Features/MakeOffer';
 import ProductQA from '../components/Features/ProductQA';
 import SimilarItems from '../components/Features/SimilarItems';
+import AuctionChat from '../components/Features/AuctionChat';
+import VacationBanner from '../components/Features/VacationBanner';
 import PriceAlert from '../components/Features/PriceAlert';
 import SocialShare from '../components/Features/SocialShare';
 
@@ -73,6 +76,34 @@ const ProductDetail = () => {
   // New feature states
   const [offerDialog, setOfferDialog] = useState(false);
   const [priceAlertDialog, setPriceAlertDialog] = useState(false);
+  const [liveBidFlash, setLiveBidFlash] = useState(false);
+
+  // Subscribe to real-time bid updates for this auction
+  useAuctionSocket(product?.id, React.useCallback((payload) => {
+    setProduct((prev) => {
+      if (!prev) return prev;
+      const nextRecent = [
+        {
+          id: payload.bidId,
+          amount: payload.amount,
+          bidder: payload.bidder?.username || 'Anonymous',
+          time: payload.time,
+        },
+        ...(prev.recentBids || []),
+      ].slice(0, 10);
+      return {
+        ...prev,
+        currentPrice: payload.amount,
+        bidCount: payload.bidCount,
+        recentBids: nextRecent,
+        auctionEnd: payload.auctionEnd || prev.auctionEnd,
+      };
+    });
+    // Auto-adjust min bid field
+    setBidAmount((payload.amount + 1).toFixed(2));
+    setLiveBidFlash(true);
+    setTimeout(() => setLiveBidFlash(false), 1500);
+  }, []));
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -223,6 +254,9 @@ const ProductDetail = () => {
         </Typography>
       </Breadcrumbs>
 
+      {/* Banner if this seller is on vacation */}
+      {product.seller?.id && <VacationBanner sellerId={product.seller.id} />}
+
       <Grid container spacing={4}>
         {/* Images */}
         <Grid item xs={12} md={6}>
@@ -318,9 +352,21 @@ const ProductDetail = () => {
               </Box>
 
               <Typography variant="body2" color="text.secondary">
-                Current bid ({product.bidCount} bids)
+                Current bid ({product.bidCount} bids) {liveBidFlash && <Chip label="LIVE" size="small" color="error" sx={{ ml: 1, height: 18 }} />}
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, mb: 2 }}>
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 700,
+                  mb: 2,
+                  transition: 'background-color 0.4s ease',
+                  bgcolor: liveBidFlash ? 'success.light' : 'transparent',
+                  color: liveBidFlash ? 'success.contrastText' : 'inherit',
+                  display: 'inline-block',
+                  px: liveBidFlash ? 1 : 0,
+                  borderRadius: 1,
+                }}
+              >
                 ${product.currentPrice?.toFixed(2) || product.startingPrice?.toFixed(2)}
               </Typography>
 
@@ -667,6 +713,18 @@ const ProductDetail = () => {
                   </Box>
                 </Grid>
               )}
+              {product.countryOfOrigin && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', borderBottom: '1px solid #e5e5e5' }}>
+                    <Box sx={{ width: '40%', bgcolor: '#f7f7f7', px: 2, py: 1.5, borderRight: '1px solid #e5e5e5' }}>
+                      <Typography variant="body2" color="text.secondary">Country of Origin</Typography>
+                    </Box>
+                    <Box sx={{ width: '60%', px: 2, py: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.countryOfOrigin}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
               {/* Custom specifications from seller */}
               {product.specifications?.['Item Specifics']?.map((spec, idx) => (
                 <Grid item xs={12} md={6} key={idx}>
@@ -974,6 +1032,11 @@ const ProductDetail = () => {
             )}
           </Box>
         </Box>
+      )}
+
+      {/* Auction watcher chat (auction listings only) */}
+      {isAuction && (
+        <AuctionChat productId={id} sellerId={product.seller?.id} />
       )}
 
       {/* Product Q&A */}

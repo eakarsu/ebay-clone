@@ -27,6 +27,9 @@ import {
   MoreVert,
   ArrowBack,
   Circle,
+  AutoAwesome,
+  Close,
+  ContentCopy,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../services/api';
@@ -42,6 +45,11 @@ const Messages = () => {
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef(null);
+
+  // AI suggestion state
+  const [aiSuggestions, setAiSuggestions] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [showAiPanel, setShowAiPanel] = useState(false);
 
   useEffect(() => {
     fetchConversations();
@@ -179,6 +187,58 @@ const Messages = () => {
     }
   };
 
+  // Fetch AI suggestions for reply
+  const fetchAiSuggestions = async () => {
+    if (!selectedConversation || messages.length === 0) return;
+
+    const lastBuyerMessage = [...messages].reverse().find(m => !m.isOwn);
+    if (!lastBuyerMessage) return;
+
+    setAiLoading(true);
+    setShowAiPanel(true);
+
+    try {
+      const response = await api.post('/ai/message-reply', {
+        originalMessage: lastBuyerMessage.content,
+        productTitle: selectedConversation.product?.title,
+        productDescription: selectedConversation.product?.description,
+        orderDetails: selectedConversation.order,
+        conversationHistory: messages.slice(-5),
+      });
+
+      if (response.data.success) {
+        setAiSuggestions(response.data.data.suggestions);
+      } else {
+        setError('Failed to get AI suggestions');
+      }
+    } catch (err) {
+      // Use mock suggestions if API fails
+      setAiSuggestions(`**Option 1 (Quick Response):**
+Hi! Yes, the item is still available. Let me know if you have any questions!
+
+**Option 2 (Detailed):**
+Hello! Thank you for your interest. The item is available and in excellent condition as described. I can ship within 1 business day of payment. Feel free to ask any questions you might have!
+
+**Option 3 (Offer Friendly):**
+Hi there! Great news - it's still available! If you're interested, feel free to make an offer or buy it now. I'm always happy to work with serious buyers. Let me know if you need more photos or have any questions!`);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Apply an AI suggestion
+  const applyAiSuggestion = (suggestion) => {
+    setNewMessage(suggestion);
+    setShowAiPanel(false);
+  };
+
+  // Parse AI suggestions into individual options
+  const parseAiSuggestions = (text) => {
+    if (!text) return [];
+    const options = text.split(/\*\*Option \d+.*?\*\*:?/i).filter(Boolean);
+    return options.map(opt => opt.trim());
+  };
+
   const getTimeDisplay = (date) => {
     const diff = Date.now() - new Date(date).getTime();
     const minutes = Math.floor(diff / 60000);
@@ -208,17 +268,22 @@ const Messages = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4, height: 'calc(100vh - 150px)' }}>
-      <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
-        Messages
-        {totalUnread > 0 && (
-          <Chip
-            label={`${totalUnread} unread`}
-            color="primary"
-            size="small"
-            sx={{ ml: 2 }}
-          />
-        )}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+          <ArrowBack />
+        </IconButton>
+        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+          Messages
+          {totalUnread > 0 && (
+            <Chip
+              label={`${totalUnread} unread`}
+              color="primary"
+              size="small"
+              sx={{ ml: 2 }}
+            />
+          )}
+        </Typography>
+      </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
@@ -411,11 +476,73 @@ const Messages = () => {
               <div ref={messagesEndRef} />
             </Box>
 
+            {/* AI Suggestions Panel */}
+            {showAiPanel && (
+              <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', bgcolor: '#f0f7ff' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <AutoAwesome sx={{ color: '#3665f3' }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#3665f3' }}>
+                      AI Suggested Replies
+                    </Typography>
+                  </Box>
+                  <IconButton size="small" onClick={() => setShowAiPanel(false)}>
+                    <Close />
+                  </IconButton>
+                </Box>
+
+                {aiLoading ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2 }}>
+                    <CircularProgress size={20} />
+                    <Typography variant="body2" color="text.secondary">
+                      Generating suggestions...
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {parseAiSuggestions(aiSuggestions).map((suggestion, idx) => (
+                      <Paper
+                        key={idx}
+                        sx={{
+                          p: 1.5,
+                          cursor: 'pointer',
+                          '&:hover': { bgcolor: '#e3f2fd' },
+                          transition: 'background-color 0.2s',
+                        }}
+                        onClick={() => applyAiSuggestion(suggestion)}
+                      >
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <Typography variant="body2" sx={{ flex: 1 }}>
+                            {suggestion.length > 150 ? suggestion.substring(0, 150) + '...' : suggestion}
+                          </Typography>
+                          <IconButton size="small" onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(suggestion);
+                          }}>
+                            <ContentCopy fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      </Paper>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            )}
+
             {/* Input */}
             <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <IconButton size="small">
                   <AttachFile />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={fetchAiSuggestions}
+                  disabled={aiLoading}
+                  sx={{ color: '#3665f3' }}
+                  title="Get AI suggestions"
+                >
+                  <AutoAwesome />
                 </IconButton>
                 <TextField
                   fullWidth

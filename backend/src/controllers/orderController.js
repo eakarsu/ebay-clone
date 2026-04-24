@@ -1,5 +1,54 @@
 const { pool } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
+const feedbackService = require('../services/feedbackService');
+
+// Validate a coupon code against a running subtotal (and optional seller scope).
+// Returns { coupon, discountAmount } or throws a user-facing Error.
+// Uses the supplied client so it's part of the same transaction as order creation.
+const validateCouponForOrder = async (client, code, userId, subtotal, sellerId) => {
+  const result = await client.query(
+    `SELECT * FROM coupons
+      WHERE code = $1
+        AND is_active = true
+        AND start_date <= CURRENT_TIMESTAMP
+        AND end_date >= CURRENT_TIMESTAMP`,
+    [code.toUpperCase()]
+  );
+  if (result.rows.length === 0) throw new Error('Invalid or expired coupon code');
+  const coupon = result.rows[0];
+
+  if (coupon.usage_limit && coupon.usage_count >= coupon.usage_limit) {
+    throw new Error('Coupon usage limit reached');
+  }
+  if (coupon.per_user_limit) {
+    const used = await client.query(
+      'SELECT COUNT(*) AS c FROM coupon_usage WHERE coupon_id = $1 AND user_id = $2',
+      [coupon.id, userId]
+    );
+    if (parseInt(used.rows[0].c, 10) >= coupon.per_user_limit) {
+      throw new Error('You have already used this coupon');
+    }
+  }
+  if (coupon.min_purchase_amount && subtotal < parseFloat(coupon.min_purchase_amount)) {
+    throw new Error(`Minimum purchase of $${coupon.min_purchase_amount} required`);
+  }
+  // Seller-issued coupons only apply to that seller's items.
+  if (coupon.seller_id && sellerId && coupon.seller_id !== sellerId) {
+    throw new Error('Coupon not valid for this seller');
+  }
+
+  let discountAmount = 0;
+  if (coupon.discount_type === 'percentage') {
+    discountAmount = (subtotal * parseFloat(coupon.discount_value)) / 100;
+    if (coupon.max_discount_amount) {
+      discountAmount = Math.min(discountAmount, parseFloat(coupon.max_discount_amount));
+    }
+  } else if (coupon.discount_type === 'fixed_amount') {
+    discountAmount = Math.min(parseFloat(coupon.discount_value), subtotal);
+  }
+  discountAmount = Math.round(discountAmount * 100) / 100;
+  return { coupon, discountAmount };
+};
 
 const generateOrderNumber = () => {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -13,7 +62,7 @@ const createOrder = async (req, res, next) => {
   try {
     await client.query('BEGIN');
 
-    const { items, shippingAddressId, billingAddressId, paymentMethodId } = req.body;
+    const { items, shippingAddressId, billingAddressId, paymentMethodId, couponCode } = req.body;
 
     // Group items by seller
     const itemsByS = {};
@@ -66,7 +115,28 @@ const createOrder = async (req, res, next) => {
       }
 
       const tax = subtotal * 0.08; // 8% tax
-      const total = subtotal + shippingTotal + tax;
+
+      // Apply coupon per-seller. Seller-scoped coupons only hit their own seller's
+      // order; admin-issued (seller_id = null) coupons apply to every sub-order.
+      let couponRow = null;
+      let discountApplied = 0;
+      if (couponCode) {
+        try {
+          const { coupon, discountAmount } = await validateCouponForOrder(
+            client, couponCode, req.user.id, subtotal, sellerId
+          );
+          couponRow = coupon;
+          discountApplied = discountAmount;
+        } catch (e) {
+          // Seller-scope mismatch isn't fatal — just skip for this sub-order.
+          if (!/not valid for this seller/.test(e.message)) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: e.message });
+          }
+        }
+      }
+
+      const total = Math.max(0, subtotal + shippingTotal + tax - discountApplied);
 
       const orderResult = await client.query(
         `INSERT INTO orders (order_number, buyer_id, seller_id, subtotal, shipping_cost, tax, total,
@@ -107,6 +177,20 @@ const createOrder = async (req, res, next) => {
         if (updatedProduct.rows[0].quantity <= updatedProduct.rows[0].quantity_sold) {
           await client.query("UPDATE products SET status = 'sold' WHERE id = $1", [item.productId]);
         }
+      }
+
+      // Record coupon usage for this sub-order (if one was applied).
+      if (couponRow && discountApplied > 0) {
+        await client.query(
+          `INSERT INTO coupon_usage (coupon_id, user_id, order_id, discount_applied)
+           VALUES ($1, $2, $3, $4)`,
+          [couponRow.id, req.user.id, order.id, discountApplied]
+        );
+        await client.query(
+          `UPDATE coupons SET usage_count = usage_count + 1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1`,
+          [couponRow.id]
+        );
       }
 
       // Update seller stats
@@ -404,6 +488,16 @@ const updateOrderStatus = async (req, res, next) => {
         `/orders/${id}`,
       ]
     );
+
+    // Trigger automatic feedback when order is delivered
+    if (status === 'delivered') {
+      try {
+        await feedbackService.processDeliveredOrder(id);
+      } catch (feedbackError) {
+        console.error('Error processing automatic feedback:', feedbackError);
+        // Don't fail the order update if feedback fails
+      }
+    }
 
     res.json({
       message: 'Order updated successfully',

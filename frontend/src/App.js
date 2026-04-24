@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import Layout from './components/Layout/Layout';
+import './i18n';
 
 // Pages
 import Home from './pages/Home';
@@ -23,6 +24,7 @@ import AdminPanel from './pages/AdminPanel';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Disputes from './pages/Disputes';
+import DisputeDetail from './pages/DisputeDetail';
 import Returns from './pages/Returns';
 import SecuritySettings from './pages/SecuritySettings';
 import SavedSearches from './pages/SavedSearches';
@@ -40,8 +42,20 @@ import PriceAlerts from './pages/PriceAlerts';
 import MyOffers from './pages/MyOffers';
 import BulkUpload from './pages/BulkUpload';
 import ScheduledListings from './pages/ScheduledListings';
+import ListingTemplates from './pages/ListingTemplates';
+import VacationMode from './pages/VacationMode';
+import Compare from './pages/Compare';
+import GiftCards from './pages/GiftCards';
+import PublicWishlist from './pages/PublicWishlist';
+import SellerEarnings from './pages/SellerEarnings';
+import BundleDiscounts from './pages/BundleDiscounts';
+import MyFeed from './pages/MyFeed';
 import Invoices from './pages/Invoices';
 import BidRetractions from './pages/BidRetractions';
+import MyCoupons from './pages/MyCoupons';
+import SellerCoupons from './pages/SellerCoupons';
+import Analytics from './pages/Analytics';
+import ApiKeys from './pages/ApiKeys';
 
 // Footer/Info Pages
 import Help from './pages/Help';
@@ -73,6 +87,24 @@ import ProxyBidding from './pages/ProxyBidding';
 import LocalPickup from './pages/LocalPickup';
 import Notifications from './pages/Notifications';
 import Messages from './pages/Messages';
+
+// AI Features Page
+import AIFeatures from './pages/AIFeatures';
+import SellerOnboarding from './pages/SellerOnboarding';
+
+// Latest eBay 2025-2026 Feature Pages
+import DailyDeals from './pages/DailyDeals';
+import EbayLive from './pages/EbayLive';
+import TeamAccess from './pages/TeamAccess';
+import Vault from './pages/Vault';
+
+// Security Feature Pages
+import ErrorBoundary from './components/ErrorBoundary';
+import SecurityAudit from './pages/SecurityAudit';
+import TokenBlacklist from './pages/TokenBlacklist';
+import ErrorLogs from './pages/ErrorLogs';
+import PasswordPolicies from './pages/PasswordPolicies';
+import ValidationRules from './pages/ValidationRules';
 
 // Material UI Theme
 const theme = createTheme({
@@ -139,6 +171,7 @@ const theme = createTheme({
 
 function App() {
   return (
+    <ErrorBoundary>
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
@@ -168,6 +201,7 @@ function App() {
                 {/* Seller routes */}
                 <Route path="/seller/dashboard" element={<SellerDashboard />} />
                 <Route path="/seller/orders" element={<SellerDashboard />} />
+                <Route path="/seller/onboarding" element={<SellerOnboarding />} />
                 <Route path="/my-listings" element={<MyListings />} />
 
                 {/* Admin routes */}
@@ -176,7 +210,7 @@ function App() {
 
                 {/* User account routes */}
                 <Route path="/disputes" element={<Disputes />} />
-                <Route path="/disputes/:id" element={<Disputes />} />
+                <Route path="/disputes/:id" element={<DisputeDetail />} />
                 <Route path="/returns" element={<Returns />} />
                 <Route path="/returns/:id" element={<Returns />} />
                 <Route path="/security" element={<SecuritySettings />} />
@@ -194,11 +228,35 @@ function App() {
                 <Route path="/my-offers" element={<MyOffers />} />
                 <Route path="/bulk-upload" element={<BulkUpload />} />
                 <Route path="/scheduled-listings" element={<ScheduledListings />} />
+                <Route path="/listing-templates" element={<ListingTemplates />} />
+                <Route path="/vacation-mode" element={<VacationMode />} />
+                <Route path="/compare" element={<Compare />} />
+                <Route path="/gift-cards" element={<GiftCards />} />
+                <Route path="/wishlist/share/:token" element={<PublicWishlist />} />
+                <Route path="/seller/earnings" element={<SellerEarnings />} />
+                <Route path="/seller/bundle-discounts" element={<BundleDiscounts />} />
+                <Route path="/my-feed" element={<MyFeed />} />
                 <Route path="/invoices" element={<Invoices />} />
                 <Route path="/bid-retractions" element={<BidRetractions />} />
+                <Route path="/my-coupons" element={<MyCoupons />} />
+                <Route path="/seller/coupons" element={<SellerCoupons />} />
+                <Route path="/seller/analytics" element={<Analytics />} />
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/api-keys" element={<ApiKeys />} />
+                <Route path="/developer/api-keys" element={<ApiKeys />} />
+
+                {/* Latest eBay 2025-2026 Feature Routes */}
+                <Route path="/deals" element={<DailyDeals />} />
+                <Route path="/daily-deals" element={<DailyDeals />} />
+                <Route path="/live" element={<EbayLive />} />
+                <Route path="/live/:streamId" element={<EbayLive />} />
+                <Route path="/ebay-live" element={<EbayLive />} />
+                <Route path="/team" element={<TeamAccess />} />
+                <Route path="/team-access" element={<TeamAccess />} />
+                <Route path="/vault" element={<Vault />} />
+                <Route path="/vault/:itemId" element={<Vault />} />
 
                 {/* Static pages and redirects */}
-                <Route path="/deals" element={<Search />} />
                 <Route path="/categories" element={<Search />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/resolution" element={<Disputes />} />
@@ -238,6 +296,17 @@ function App() {
                 <Route path="/selling-limits" element={<SellingLimits />} />
                 <Route path="/volume-pricing" element={<VolumePricing />} />
 
+                {/* AI Features */}
+                <Route path="/ai-features" element={<AIFeatures />} />
+                <Route path="/ai" element={<AIFeatures />} />
+
+                {/* Security Feature Routes */}
+                <Route path="/security-audit" element={<SecurityAudit />} />
+                <Route path="/token-blacklist" element={<TokenBlacklist />} />
+                <Route path="/error-logs" element={<ErrorLogs />} />
+                <Route path="/password-policies" element={<PasswordPolicies />} />
+                <Route path="/validation-rules" element={<ValidationRules />} />
+
                 {/* Catch-all route */}
                 <Route path="*" element={<Home />} />
               </Routes>
@@ -246,6 +315,7 @@ function App() {
         </CartProvider>
       </AuthProvider>
     </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

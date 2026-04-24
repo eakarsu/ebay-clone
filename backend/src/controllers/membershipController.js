@@ -1,5 +1,74 @@
-// eBay Plus Membership Controller
+// eBay Plus Membership Controller - Complete Implementation
 const { pool } = require('../config/database');
+
+// Initialize membership tables if they don't exist
+const initializeTables = async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS membership_plans (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        monthly_price DECIMAL(10,2) NOT NULL,
+        annual_price DECIMAL(10,2) NOT NULL,
+        free_shipping BOOLEAN DEFAULT false,
+        free_returns BOOLEAN DEFAULT false,
+        extended_returns_days INTEGER DEFAULT 30,
+        exclusive_deals BOOLEAN DEFAULT false,
+        priority_support BOOLEAN DEFAULT false,
+        early_access BOOLEAN DEFAULT false,
+        cashback_percent DECIMAL(5,2) DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_memberships (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        plan_id INTEGER REFERENCES membership_plans(id),
+        billing_cycle VARCHAR(20) DEFAULT 'monthly',
+        start_date TIMESTAMP NOT NULL,
+        end_date TIMESTAMP NOT NULL,
+        auto_renew BOOLEAN DEFAULT true,
+        status VARCHAR(20) DEFAULT 'active',
+        cancelled_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS membership_exclusive_deals (
+        id SERIAL PRIMARY KEY,
+        product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+        discount_type VARCHAR(20) DEFAULT 'percentage',
+        discount_value DECIMAL(10,2) NOT NULL,
+        membership_required BOOLEAN DEFAULT true,
+        start_date TIMESTAMP DEFAULT NOW(),
+        end_date TIMESTAMP DEFAULT (NOW() + INTERVAL '30 days'),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Insert default plans if none exist
+    const existingPlans = await pool.query('SELECT COUNT(*) FROM membership_plans');
+    if (parseInt(existingPlans.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO membership_plans (name, description, monthly_price, annual_price, free_shipping, free_returns, extended_returns_days, exclusive_deals, priority_support, early_access, cashback_percent)
+        VALUES
+          ('eBay Plus', 'Premium membership with exclusive benefits', 9.99, 99.99, true, true, 60, true, true, true, 2),
+          ('eBay Plus Premium', 'Ultimate membership with maximum benefits', 19.99, 179.99, true, true, 90, true, true, true, 5)
+      `);
+    }
+  } catch (error) {
+    console.error('Error initializing membership tables:', error.message);
+  }
+};
+
+// Initialize on module load
+initializeTables();
 
 // Get available membership plans
 const getMembershipPlans = async (req, res) => {
@@ -9,39 +78,8 @@ const getMembershipPlans = async (req, res) => {
     );
     res.json(result.rows);
   } catch (error) {
-    // Return mock plans if table doesn't exist
-    res.json([
-      {
-        id: 1,
-        name: 'eBay Plus',
-        description: 'Premium membership with exclusive benefits',
-        monthly_price: 9.99,
-        annual_price: 99.99,
-        free_shipping: true,
-        free_returns: true,
-        extended_returns_days: 60,
-        exclusive_deals: true,
-        priority_support: true,
-        early_access: true,
-        cashback_percent: 2,
-        is_active: true
-      },
-      {
-        id: 2,
-        name: 'eBay Plus Premium',
-        description: 'Ultimate membership with maximum benefits',
-        monthly_price: 19.99,
-        annual_price: 179.99,
-        free_shipping: true,
-        free_returns: true,
-        extended_returns_days: 90,
-        exclusive_deals: true,
-        priority_support: true,
-        early_access: true,
-        cashback_percent: 5,
-        is_active: true
-      }
-    ]);
+    console.error('Get membership plans error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch membership plans' });
   }
 };
 
@@ -65,8 +103,8 @@ const getUserMembership = async (req, res) => {
 
     res.json({ hasMembership: true, membership: result.rows[0] });
   } catch (error) {
-    // Return mock response if tables don't exist
-    res.json({ hasMembership: false, membership: null });
+    console.error('Get user membership error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch membership status' });
   }
 };
 
@@ -121,27 +159,18 @@ const subscribeMembership = async (req, res) => {
     await pool.query(
       `UPDATE users SET is_premium_member = true WHERE id = $1`,
       [req.user.id]
-    );
+    ).catch(() => {}); // Ignore if column doesn't exist
 
     res.status(201).json({
       message: 'Successfully subscribed to membership',
       membership: result.rows[0],
-      plan: planData
+      plan: planData,
+      nextBillingDate: endDate,
+      amountCharged: price
     });
   } catch (error) {
     console.error('Subscribe membership error:', error.message);
-    // Return mock success if tables don't exist
-    res.status(201).json({
-      message: 'Successfully subscribed to membership (demo mode)',
-      membership: {
-        id: 'demo-membership-' + Date.now(),
-        plan_id: planId,
-        billing_cycle: billingCycle,
-        status: 'active',
-        start_date: new Date(),
-        end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-      }
-    });
+    res.status(500).json({ error: 'Failed to subscribe to membership' });
   }
 };
 
@@ -157,30 +186,30 @@ const cancelMembership = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      // Return success for demo mode - no active membership to cancel
-      return res.json({
-        message: 'Membership cancelled (demo mode)',
-        membership: null
-      });
+      return res.status(404).json({ error: 'No active membership found' });
     }
+
+    // Update user's membership status
+    await pool.query(
+      `UPDATE users SET is_premium_member = false WHERE id = $1`,
+      [req.user.id]
+    ).catch(() => {});
 
     res.json({
       message: 'Membership cancelled. Benefits will remain active until end date.',
-      membership: result.rows[0]
+      membership: result.rows[0],
+      benefitsEndDate: result.rows[0].end_date
     });
   } catch (error) {
-    // Return mock success if table doesn't exist (demo mode)
-    res.json({
-      message: 'Membership cancelled (demo mode)',
-      membership: null
-    });
+    console.error('Cancel membership error:', error.message);
+    res.status(500).json({ error: 'Failed to cancel membership' });
   }
 };
 
 // Get membership benefits for checkout
 const getMembershipBenefits = async (req, res) => {
   try {
-    const { subtotal, sellerId } = req.query;
+    const { subtotal } = req.query;
 
     const membership = await pool.query(
       `SELECT um.*, mp.*
@@ -202,11 +231,9 @@ const getMembershipBenefits = async (req, res) => {
     const plan = membership.rows[0];
     const orderSubtotal = parseFloat(subtotal) || 0;
 
-    // Check free shipping eligibility (free_shipping is a boolean in the schema)
     const freeShipping = plan.free_shipping === true;
-    const shippingSavings = freeShipping ? 9.99 : 0; // Estimated shipping cost
+    const shippingSavings = freeShipping ? 9.99 : 0;
 
-    // Check for member discounts (cashback_percent in the schema)
     const discountPercent = plan.cashback_percent || 0;
     const discountSavings = orderSubtotal * (discountPercent / 100);
 
@@ -222,13 +249,8 @@ const getMembershipBenefits = async (req, res) => {
       totalSavings: shippingSavings + discountSavings
     });
   } catch (error) {
-    // Return mock response if tables don't exist
-    res.json({
-      hasMembership: false,
-      freeShipping: false,
-      discountPercent: 0,
-      totalSavings: 0
-    });
+    console.error('Get membership benefits error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch membership benefits' });
   }
 };
 
@@ -247,40 +269,22 @@ const getExclusiveDeals = async (req, res) => {
     }
 
     const deals = await pool.query(
-      `SELECT med.*, p.title, p.current_price as original_price,
-              (p.current_price * (1 - med.discount_value/100)) as member_price,
-              (SELECT image_url FROM product_images WHERE product_id = p.id AND is_primary = true LIMIT 1) as image
+      `SELECT med.*, p.title, p.price as original_price,
+              (p.price * (1 - med.discount_value/100)) as member_price,
+              p.image_url as image
        FROM membership_exclusive_deals med
        JOIN products p ON med.product_id = p.id
        WHERE med.membership_required = true
        AND med.start_date <= CURRENT_TIMESTAMP
        AND med.end_date >= CURRENT_TIMESTAMP
-       ORDER BY med.discount_value DESC`
+       ORDER BY med.discount_value DESC
+       LIMIT 20`
     );
 
     res.json(deals.rows);
   } catch (error) {
-    // Return mock deals if tables don't exist
-    res.json([
-      {
-        id: 1,
-        title: '20% Off Electronics',
-        description: 'Exclusive member discount on all electronics',
-        discount_type: 'percentage',
-        discount_value: 20,
-        original_price: 299.99,
-        member_price: 239.99
-      },
-      {
-        id: 2,
-        title: '15% Off Fashion',
-        description: 'Save on designer fashion items',
-        discount_type: 'percentage',
-        discount_value: 15,
-        original_price: 149.99,
-        member_price: 127.49
-      }
-    ]);
+    console.error('Get exclusive deals error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch exclusive deals' });
   }
 };
 
@@ -306,10 +310,8 @@ const updateAutoRenew = async (req, res) => {
       membership: result.rows[0]
     });
   } catch (error) {
-    res.json({
-      message: `Auto-renew ${req.body.autoRenew ? 'enabled' : 'disabled'} (demo mode)`,
-      membership: null
-    });
+    console.error('Update auto-renew error:', error.message);
+    res.status(500).json({ error: 'Failed to update auto-renew setting' });
   }
 };
 
@@ -354,8 +356,75 @@ const checkMemberPricing = async (req, res) => {
         : `Join eBay Plus to save ${discountPercent}% on this item`
     });
   } catch (error) {
-    // Return no member pricing if tables don't exist
+    console.error('Check member pricing error:', error.message);
     res.json({ hasMemberPricing: false });
+  }
+};
+
+// Get membership history
+const getMembershipHistory = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT um.*, mp.name as plan_name
+       FROM user_memberships um
+       JOIN membership_plans mp ON um.plan_id = mp.id
+       WHERE um.user_id = $1
+       ORDER BY um.created_at DESC`,
+      [req.user.id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get membership history error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch membership history' });
+  }
+};
+
+// Upgrade membership plan
+const upgradeMembership = async (req, res) => {
+  const { newPlanId } = req.body;
+
+  try {
+    // Get current membership
+    const current = await pool.query(
+      `SELECT um.*, mp.monthly_price as current_price
+       FROM user_memberships um
+       JOIN membership_plans mp ON um.plan_id = mp.id
+       WHERE um.user_id = $1 AND um.status = 'active'`,
+      [req.user.id]
+    );
+
+    if (current.rows.length === 0) {
+      return res.status(404).json({ error: 'No active membership to upgrade' });
+    }
+
+    // Get new plan
+    const newPlan = await pool.query(
+      `SELECT * FROM membership_plans WHERE id = $1 AND is_active = true`,
+      [newPlanId]
+    );
+
+    if (newPlan.rows.length === 0) {
+      return res.status(404).json({ error: 'New plan not found' });
+    }
+
+    // Update to new plan
+    const result = await pool.query(
+      `UPDATE user_memberships
+       SET plan_id = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $2 AND status = 'active'
+       RETURNING *`,
+      [newPlanId, req.user.id]
+    );
+
+    res.json({
+      message: 'Membership upgraded successfully',
+      membership: result.rows[0],
+      newPlan: newPlan.rows[0]
+    });
+  } catch (error) {
+    console.error('Upgrade membership error:', error.message);
+    res.status(500).json({ error: 'Failed to upgrade membership' });
   }
 };
 
@@ -367,5 +436,7 @@ module.exports = {
   getMembershipBenefits,
   getExclusiveDeals,
   updateAutoRenew,
-  checkMemberPricing
+  checkMemberPricing,
+  getMembershipHistory,
+  upgradeMembership
 };

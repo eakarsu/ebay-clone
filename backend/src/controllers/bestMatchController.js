@@ -118,13 +118,14 @@ const updateProductQualityScore = async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    // Upsert quality score
+    // Upsert quality score. product_quality_scores stores a single best_match_score
+    // (components are recomputed each call, not persisted).
     await pool.query(
-      `INSERT INTO product_quality_scores (product_id, quality_score, components, updated_at)
-       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+      `INSERT INTO product_quality_scores (product_id, best_match_score, updated_at)
+       VALUES ($1, $2, CURRENT_TIMESTAMP)
        ON CONFLICT (product_id) DO UPDATE SET
-       quality_score = $2, components = $3, updated_at = CURRENT_TIMESTAMP`,
-      [productId, score.totalScore, JSON.stringify(score.components)]
+       best_match_score = $2, updated_at = CURRENT_TIMESTAMP`,
+      [productId, score.totalScore]
     );
 
     res.json(score);
@@ -190,7 +191,7 @@ const searchWithBestMatch = async (req, res) => {
         break;
       case 'best_match':
       default:
-        orderBy = 'COALESCE(pqs.quality_score, 50) DESC, p.created_at DESC';
+        orderBy = 'COALESCE(pqs.best_match_score, 50) DESC, p.created_at DESC';
         break;
     }
 
@@ -198,7 +199,7 @@ const searchWithBestMatch = async (req, res) => {
     const result = await pool.query(
       `SELECT p.*, c.name as category_name,
               u.username as seller_name,
-              COALESCE(pqs.quality_score, 50) as match_score,
+              COALESCE(pqs.best_match_score, 50) as match_score,
               (SELECT image_url FROM product_images WHERE product_id = p.id AND is_primary = true LIMIT 1) as image,
               (SELECT COUNT(*) FROM bids WHERE product_id = p.id) as bid_count,
               (SELECT COUNT(*) FROM watchlist WHERE product_id = p.id) as watch_count
@@ -283,13 +284,13 @@ const getRecommendations = async (req, res) => {
       // Recommend from user's interested categories
       recommendations = await pool.query(
         `SELECT p.*,
-                COALESCE(pqs.quality_score, 50) as match_score,
+                COALESCE(pqs.best_match_score, 50) as match_score,
                 (SELECT image_url FROM product_images WHERE product_id = p.id AND is_primary = true LIMIT 1) as image
          FROM products p
          LEFT JOIN product_quality_scores pqs ON p.id = pqs.product_id
          WHERE p.status = 'active' AND p.category_id = ANY($1)
          AND p.id NOT IN (SELECT product_id FROM orders WHERE buyer_id = $2)
-         ORDER BY COALESCE(pqs.quality_score, 50) DESC
+         ORDER BY COALESCE(pqs.best_match_score, 50) DESC
          LIMIT 12`,
         [categoryIds, userId]
       );
@@ -324,11 +325,11 @@ const batchUpdateQualityScores = async (req, res) => {
         const score = await calculateQualityScore(product.id);
         if (score) {
           await pool.query(
-            `INSERT INTO product_quality_scores (product_id, quality_score, components, updated_at)
-             VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+            `INSERT INTO product_quality_scores (product_id, best_match_score, updated_at)
+             VALUES ($1, $2, CURRENT_TIMESTAMP)
              ON CONFLICT (product_id) DO UPDATE SET
-             quality_score = $2, components = $3, updated_at = CURRENT_TIMESTAMP`,
-            [product.id, score.totalScore, JSON.stringify(score.components)]
+             best_match_score = $2, updated_at = CURRENT_TIMESTAMP`,
+            [product.id, score.totalScore]
           );
           updated++;
         }
