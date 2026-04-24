@@ -9,5 +9,6 @@ router.get('/seller', authenticate, questionController.getSellerQuestions);
 router.post('/', authenticate, questionController.askQuestion);
 router.post('/:questionId/answer', authenticate, questionController.answerQuestion);
 router.post('/helpful/:answerId', authenticate, questionController.markHelpful);
+router.post('/upvote/:targetType/:targetId', authenticate, questionController.upvoteQA);
 
 module.exports = router;

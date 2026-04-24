@@ -4,6 +4,7 @@ import Header from './Header';
 import Footer from './Footer';
 import LiveChat from '../Features/LiveChat';
 import ShoppingAssistant from '../ShoppingAssistant';
+import OutbidToast from '../OutbidToast';
 
 const Layout = ({ children }) => {
   return (
@@ -15,6 +16,7 @@ const Layout = ({ children }) => {
       <Footer />
       <LiveChat />
       <ShoppingAssistant />
+      <OutbidToast />
     </Box>
   );
 };

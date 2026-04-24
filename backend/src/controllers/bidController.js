@@ -105,7 +105,18 @@ const placeBid = async (req, res, next) => {
       );
     }
 
-    // Notify outbid users
+    // Notify outbid users — we surface the *previous winning bidder* (the one
+    // actually outbid by this bid) with a live socket push. All other prior
+    // bidders still get a notification row.
+    const prevWinner = await client.query(
+      `SELECT bidder_id FROM bids
+        WHERE product_id = $1 AND id != $2
+        ORDER BY bid_amount DESC, created_at DESC
+        LIMIT 1`,
+      [productId, bidResult.rows[0].id]
+    );
+    const prevWinnerId = prevWinner.rows[0]?.bidder_id || null;
+
     const outbidUsers = await client.query(
       `SELECT DISTINCT bidder_id FROM bids
        WHERE product_id = $1 AND bidder_id != $2`,
@@ -124,7 +135,27 @@ const placeBid = async (req, res, next) => {
       );
     }
 
+    // Title for the socket payload — fetched once, cheap.
+    const titleResult = await client.query(
+      'SELECT title FROM products WHERE id = $1',
+      [productId]
+    );
+    const productTitle = titleResult.rows[0]?.title || 'an item';
+
     await client.query('COMMIT');
+
+    // Live push to the *previous* winner so a toast appears wherever they are.
+    // Only push if they aren't the same user as the new bidder (which is
+    // already excluded above but belt-and-suspenders).
+    if (prevWinnerId && prevWinnerId !== req.user.id) {
+      realtime.emitToUser(prevWinnerId, 'user:outbid', {
+        productId,
+        productTitle,
+        newBidAmount: parseFloat(bidResult.rows[0].bid_amount),
+        link: `/product/${productId}`,
+        at: new Date().toISOString(),
+      });
+    }
 
     // Lookup bidder username for broadcast (outside transaction)
     const bidderResult = await pool.query(

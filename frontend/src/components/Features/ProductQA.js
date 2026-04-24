@@ -79,12 +79,31 @@ const ProductQA = ({ productId, sellerId }) => {
     }
   };
 
-  const handleMarkHelpful = async (questionId) => {
+  // Dedup-protected upvote. Backend returns { alreadyVoted, helpfulCount } — we
+  // optimistically update the local state so the user sees an immediate bump
+  // even without a full refetch, and avoid the case where a second click
+  // silently no-ops without visual feedback.
+  const handleUpvote = async (targetType, targetId) => {
     try {
-      await questionService.markHelpful(questionId);
-      fetchQuestions();
+      const res = await questionService.upvote(targetType, targetId);
+      const { helpfulCount, alreadyVoted } = res.data;
+      setQuestions((prev) => prev.map((q) => {
+        if (targetType === 'question' && q.id === targetId) {
+          return { ...q, helpful_count: helpfulCount, youVoted: true };
+        }
+        if (targetType === 'answer' && q.answers?.some((a) => a.id === targetId)) {
+          return {
+            ...q,
+            answers: q.answers.map((a) =>
+              a.id === targetId ? { ...a, helpful_count: helpfulCount, youVoted: true } : a
+            ),
+          };
+        }
+        return q;
+      }));
+      return alreadyVoted;
     } catch (error) {
-      console.error('Error marking helpful:', error);
+      console.error('Error upvoting:', error);
     }
   };
 
@@ -158,10 +177,12 @@ const ProductQA = ({ productId, sellerId }) => {
                   </Typography>
                   <IconButton
                     size="small"
-                    onClick={() => handleMarkHelpful(q.id)}
-                    color={q.isHelpful ? 'primary' : 'default'}
+                    onClick={() => user ? handleUpvote('question', q.id) : null}
+                    disabled={!user}
+                    color={q.youVoted ? 'primary' : 'default'}
+                    title={user ? 'Helpful' : 'Sign in to upvote'}
                   >
-                    {q.isHelpful ? <ThumbUp fontSize="small" /> : <ThumbUpOutlined fontSize="small" />}
+                    {q.youVoted ? <ThumbUp fontSize="small" /> : <ThumbUpOutlined fontSize="small" />}
                   </IconButton>
                   <Typography variant="caption">{q.helpful_count || q.helpfulCount || 0}</Typography>
                 </Box>
@@ -171,12 +192,24 @@ const ProductQA = ({ productId, sellerId }) => {
                     <Avatar sx={{ bgcolor: 'success.main', width: 32, height: 32, fontSize: 14 }}>
                       A
                     </Avatar>
-                    <Box>
+                    <Box sx={{ flex: 1 }}>
                       <Typography variant="body2">{answer.answer}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {(answer.is_seller_answer || answer.isSeller) && <Chip label="Seller" size="small" sx={{ mr: 1, height: 18 }} />}
-                        {answer.answerer_username || answer.answerer?.username} • {formatDistanceToNow(new Date(answer.created_at || answer.createdAt), { addSuffix: true })}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {(answer.is_seller_answer || answer.isSeller) && <Chip label="Seller" size="small" sx={{ mr: 1, height: 18 }} />}
+                          {answer.answerer_username || answer.answerer?.username} • {formatDistanceToNow(new Date(answer.created_at || answer.createdAt), { addSuffix: true })}
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          onClick={() => user ? handleUpvote('answer', answer.id) : null}
+                          disabled={!user}
+                          color={answer.youVoted ? 'primary' : 'default'}
+                          title={user ? 'Helpful' : 'Sign in to upvote'}
+                        >
+                          {answer.youVoted ? <ThumbUp fontSize="small" /> : <ThumbUpOutlined fontSize="small" />}
+                        </IconButton>
+                        <Typography variant="caption">{answer.helpful_count || 0}</Typography>
+                      </Box>
                     </Box>
                   </Box>
                 ))}

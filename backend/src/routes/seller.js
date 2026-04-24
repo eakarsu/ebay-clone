@@ -16,12 +16,14 @@ const {
   generateSampleData,
 } = require('../controllers/sellerController');
 const { getInventoryForecast } = require('../controllers/inventoryForecastController');
+const { exportSellerOrders } = require('../controllers/sellerExportController');
 const { authenticateToken } = require('../middleware/auth');
 
 router.use(authenticateToken);
 
 router.get('/dashboard', getDashboard);
 router.get('/orders', getSellerOrders);
+router.get('/orders/export', exportSellerOrders);
 router.get('/products', getSellerProducts);
 router.get('/analytics', getSalesAnalytics);
 router.put('/orders/:orderId/status', updateOrderStatus);

@@ -200,6 +200,9 @@ export const questionService = {
   ask: (data) => api.post('/questions', data),
   answer: (id, data) => api.post(`/questions/${id}/answer`, data),
   markHelpful: (id) => api.post(`/questions/${id}/helpful`),
+  // targetType: 'question' | 'answer'
+  upvote: (targetType, targetId) =>
+    api.post(`/questions/upvote/${targetType}/${targetId}`),
   getMyQuestions: () => api.get('/questions/my'),
 };
 

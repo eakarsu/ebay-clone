@@ -205,6 +205,29 @@ const SellerDashboard = () => {
           <Button variant="outlined" onClick={() => navigate('/seller/inventory-forecast')}>
             Inventory Forecast
           </Button>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              const token = localStorage.getItem('token');
+              const qs = orderFilter ? `?status=${encodeURIComponent(orderFilter)}` : '';
+              // Fetch via auth header then download — browsers don't send our
+              // Bearer token with plain window.open, so we build the blob here.
+              fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:4000/api'}/seller/orders/export${qs}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+                .then((r) => r.blob())
+                .then((blob) => {
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `orders-${new Date().toISOString().slice(0, 10)}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                });
+            }}
+          >
+            Export CSV
+          </Button>
           <Button variant="contained" onClick={() => navigate('/sell')}>
             List New Item
           </Button>

@@ -89,6 +89,70 @@ const answerQuestion = async (req, res) => {
   }
 };
 
+// Upvote a question or answer. Dedup-protected: each user can only upvote
+// a given target once. The `qa_upvotes` row acts as the dedup guard; we
+// only increment the target's `helpful_count` on a *new* insert so repeated
+// calls from the same user are idempotent.
+const upvoteQA = async (req, res, next) => {
+  const { targetType, targetId } = req.params;
+  if (!['question', 'answer'].includes(targetType)) {
+    return res.status(400).json({ error: 'Invalid target type' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Insert the upvote row; ON CONFLICT DO NOTHING means repeat votes are
+    // silently swallowed. rowCount === 1 iff this is the first vote.
+    const insert = await client.query(
+      `INSERT INTO qa_upvotes (user_id, target_type, target_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, target_type, target_id) DO NOTHING`,
+      [req.user.id, targetType, targetId]
+    );
+
+    if (insert.rowCount === 1) {
+      const table = targetType === 'question' ? 'product_questions' : 'product_answers';
+      const bump = await client.query(
+        `UPDATE ${table} SET helpful_count = helpful_count + 1 WHERE id = $1
+         RETURNING helpful_count`,
+        [targetId]
+      );
+      if (bump.rowCount === 0) {
+        // Target doesn't exist — the upvote row we just inserted is orphaned.
+        // Roll back so we don't leave a dangling vote.
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: `${targetType} not found` });
+      }
+      await client.query('COMMIT');
+      return res.json({
+        upvoted: true,
+        alreadyVoted: false,
+        helpfulCount: bump.rows[0].helpful_count,
+      });
+    }
+
+    // Repeat vote — fetch current count for the response.
+    const table = targetType === 'question' ? 'product_questions' : 'product_answers';
+    const now = await client.query(
+      `SELECT helpful_count FROM ${table} WHERE id = $1`,
+      [targetId]
+    );
+    await client.query('COMMIT');
+    res.json({
+      upvoted: true,
+      alreadyVoted: true,
+      helpfulCount: now.rows[0]?.helpful_count ?? null,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+};
+
 // Mark answer as helpful
 const markHelpful = async (req, res) => {
   try {
@@ -153,6 +217,7 @@ module.exports = {
   askQuestion,
   answerQuestion,
   markHelpful,
+  upvoteQA,
   getMyQuestions,
   getSellerQuestions
 };
