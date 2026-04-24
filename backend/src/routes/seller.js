@@ -15,6 +15,7 @@ const {
   getBulkUploadTemplate,
   generateSampleData,
 } = require('../controllers/sellerController');
+const { getInventoryForecast } = require('../controllers/inventoryForecastController');
 const { authenticateToken } = require('../middleware/auth');
 
 router.use(authenticateToken);
@@ -26,6 +27,7 @@ router.get('/analytics', getSalesAnalytics);
 router.put('/orders/:orderId/status', updateOrderStatus);
 router.get('/reviews', getSellerReviews);
 router.get('/alerts', getInventoryAlerts);
+router.get('/inventory-forecast', getInventoryForecast);
 
 // Listing management
 router.put('/products/:productId/end', endListing);

@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const aiController = require('../controllers/aiController');
+const { suggestSmartPrice } = require('../controllers/smartPricingController');
 const { authenticateToken, optionalAuth } = require('../middleware/auth');
 
 // Generate product description (auth required for sellers)
@@ -10,6 +11,9 @@ router.post('/generate-description', optionalAuth, aiController.generateDescript
 
 // Get price suggestions
 router.post('/suggest-price', optionalAuth, aiController.suggestPrice);
+
+// Smart price: server-side comparable lookup + AI reasoning (with statistical fallback)
+router.post('/smart-price', optionalAuth, suggestSmartPrice);
 
 // Get personalized recommendations
 router.post('/recommendations', optionalAuth, aiController.getRecommendations);

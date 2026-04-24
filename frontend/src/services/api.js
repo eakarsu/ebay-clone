@@ -707,6 +707,33 @@ export const flashSaleService = {
   cancel: (id) => api.delete(`/flash-sales/${id}`),
 };
 
+// Trust score
+export const trustScoreService = {
+  get: (userId) => api.get(`/trust-score/${userId}`),
+};
+
+// Smart pricing (AI-assisted, server-side comparables)
+export const smartPricingService = {
+  suggest: ({ title, categoryId, condition }) =>
+    api.post('/ai/smart-price', { title, categoryId, condition }),
+};
+
+// AI description
+export const aiDescriptionService = {
+  generate: ({ title, category, condition, price, features }) =>
+    api.post('/ai/generate-description', { title, category, condition, price, features }),
+};
+
+// For-you feed
+export const forYouService = {
+  get: () => api.get('/recommendations/for-you'),
+};
+
+// Inventory forecast (seller)
+export const inventoryForecastService = {
+  get: () => api.get('/seller/inventory-forecast'),
+};
+
 // Group buys
 export const groupBuyService = {
   listOpen: () => api.get('/group-buys'),

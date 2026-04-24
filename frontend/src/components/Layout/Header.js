@@ -126,6 +126,9 @@ const Header = () => {
               <Link to="/deals" style={{ color: 'inherit', textDecoration: 'none' }}>
                 <Typography variant="body2">Daily Deals</Typography>
               </Link>
+              <Link to="/for-you" style={{ color: 'inherit', textDecoration: 'none' }}>
+                <Typography variant="body2">For You</Typography>
+              </Link>
               <Link to="/flash-sales" style={{ color: '#e53238', textDecoration: 'none' }}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>Flash Sales</Typography>
               </Link>

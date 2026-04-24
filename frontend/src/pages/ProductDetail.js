@@ -58,6 +58,7 @@ import VacationBanner from '../components/Features/VacationBanner';
 import PriceAlert from '../components/Features/PriceAlert';
 import PriceHistoryChart from '../components/PriceHistoryChart';
 import SocialShare from '../components/Features/SocialShare';
+import TrustBadge from '../components/TrustBadge';
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -330,11 +331,12 @@ const ProductDetail = () => {
               >
                 {product.seller?.username}
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 <Rating value={product.seller?.rating * 5} readOnly size="small" precision={0.1} />
                 <Typography variant="body2" color="text.secondary">
                   ({product.seller?.totalSales} sales)
                 </Typography>
+                {product.seller?.id && <TrustBadge userId={product.seller.id} />}
               </Box>
             </Box>
           </Box>

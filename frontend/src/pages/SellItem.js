@@ -34,7 +34,8 @@ import {
   AutoFixHigh,
   Close,
 } from '@mui/icons-material';
-import { categoryService, productService, uploadService, aiService } from '../services/api';
+import { categoryService, productService, uploadService, aiService, smartPricingService } from '../services/api';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useAuth } from '../context/AuthContext';
 import FeeCalculator from '../components/FeeCalculator';
 
@@ -56,6 +57,9 @@ const SellItem = () => {
   const [enhancingImage, setEnhancingImage] = useState(null);
   const [imageAnalysis, setImageAnalysis] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [aiDescLoading, setAiDescLoading] = useState(false);
+  const [smartPrice, setSmartPrice] = useState(null);
+  const [smartPriceLoading, setSmartPriceLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     // Step 1: Basic Info
@@ -137,6 +141,56 @@ const SellItem = () => {
       [name]: type === 'checkbox' ? checked : value,
     }));
     setError('');
+  };
+
+  // AI: fill in a description from the title + attributes.
+  const handleAIDescribe = async () => {
+    if (!formData.title) {
+      setError('Enter a title first so the AI has something to work with.');
+      return;
+    }
+    setAiDescLoading(true);
+    try {
+      const cat = categories.find((c) => c.id === formData.categoryId);
+      const res = await aiService.generateDescription({
+        title: formData.title,
+        category: cat?.name,
+        condition: formData.condition,
+        price: formData.buyNowPrice || formData.startingPrice,
+        features: [formData.brand, formData.model, formData.color, formData.size, formData.material]
+          .filter(Boolean)
+          .join(', '),
+      });
+      const text = res.data?.data?.description || res.data?.data?.analysis || '';
+      if (text) setFormData((prev) => ({ ...prev, description: text }));
+      else setError('AI returned no text. Try adding more details to the title.');
+    } catch (err) {
+      setError(err.response?.data?.error || 'AI description failed. Check OPENROUTER_API_KEY.');
+    } finally {
+      setAiDescLoading(false);
+    }
+  };
+
+  // AI: suggest a price band from real comparables in the catalog.
+  const handleSmartPrice = async () => {
+    if (!formData.title) {
+      setError('Enter a title first so we can find comparables.');
+      return;
+    }
+    setSmartPriceLoading(true);
+    setSmartPrice(null);
+    try {
+      const res = await smartPricingService.suggest({
+        title: formData.title,
+        categoryId: formData.categoryId || undefined,
+        condition: formData.condition || undefined,
+      });
+      setSmartPrice(res.data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Smart price lookup failed.');
+    } finally {
+      setSmartPriceLoading(false);
+    }
   };
 
   // Image handling functions
@@ -665,6 +719,16 @@ const SellItem = () => {
         <Typography variant="h6" sx={{ mb: 2 }}>Item Details</Typography>
       </Grid>
       <Grid item xs={12}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+          <Button
+            size="small"
+            startIcon={<AutoAwesomeIcon />}
+            onClick={handleAIDescribe}
+            disabled={aiDescLoading || !formData.title}
+          >
+            {aiDescLoading ? 'Writing…' : 'AI-write description'}
+          </Button>
+        </Box>
         <TextField
           fullWidth
           multiline
@@ -723,6 +787,39 @@ const SellItem = () => {
           <TextField fullWidth label="Buy It Now Price" name="buyNowPrice" type="number"
             value={formData.buyNowPrice} onChange={handleChange} required
             InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+          <Button
+            size="small"
+            startIcon={<AutoAwesomeIcon />}
+            onClick={handleSmartPrice}
+            disabled={smartPriceLoading || !formData.title}
+            sx={{ mt: 1 }}
+          >
+            {smartPriceLoading ? 'Analyzing…' : 'Suggest price from comparables'}
+          </Button>
+          {smartPrice?.recommendation && (
+            <Box sx={{ mt: 1, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ mb: 0.5 }}>
+                Suggested: <b>${smartPrice.recommendation.suggested?.toFixed(2)}</b>
+                {' '}(range ${smartPrice.recommendation.min?.toFixed(2)}–${smartPrice.recommendation.max?.toFixed(2)})
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                {smartPrice.recommendation.reasoning} · {smartPrice.recommendation.sampleSize} comparables ·
+                {' '}{smartPrice.recommendation.source === 'ai' ? 'AI-reasoned' : 'statistical fallback'}
+              </Typography>
+              <Button
+                size="small"
+                sx={{ mt: 0.5 }}
+                onClick={() => setFormData((p) => ({ ...p, buyNowPrice: smartPrice.recommendation.suggested.toFixed(2) }))}
+              >
+                Use ${smartPrice.recommendation.suggested?.toFixed(2)}
+              </Button>
+            </Box>
+          )}
+          {smartPrice && !smartPrice.recommendation && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              {smartPrice.message || 'No comparables found.'}
+            </Typography>
+          )}
         </Grid>
       )}
 

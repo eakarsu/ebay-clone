@@ -201,9 +201,14 @@ const SellerDashboard = () => {
             Seller Dashboard
           </Typography>
         </Box>
-        <Button variant="contained" onClick={() => navigate('/sell')}>
-          List New Item
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button variant="outlined" onClick={() => navigate('/seller/inventory-forecast')}>
+            Inventory Forecast
+          </Button>
+          <Button variant="contained" onClick={() => navigate('/sell')}>
+            List New Item
+          </Button>
+        </Box>
       </Box>
 
       {/* Stats Cards */}

@@ -64,6 +64,8 @@ import Wallet from './pages/Wallet';
 import Referrals from './pages/Referrals';
 import FlashSales from './pages/FlashSales';
 import GroupBuys from './pages/GroupBuys';
+import ForYou from './pages/ForYou';
+import InventoryForecast from './pages/InventoryForecast';
 
 // Footer/Info Pages
 import Help from './pages/Help';
@@ -196,6 +198,8 @@ function App() {
                 <Route path="/referrals" element={<Referrals />} />
                 <Route path="/flash-sales" element={<FlashSales />} />
                 <Route path="/group-buys" element={<GroupBuys />} />
+                <Route path="/for-you" element={<ForYou />} />
+                <Route path="/seller/inventory-forecast" element={<InventoryForecast />} />
 
                 {/* Latest eBay 2025-2026 Feature Routes */}
                 <Route path="/deals" element={<DailyDeals />} />

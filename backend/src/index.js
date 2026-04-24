@@ -102,6 +102,7 @@ const walletRoutes = require('./routes/wallet');
 const referralRoutes = require('./routes/referrals');
 const flashSaleRoutes = require('./routes/flashSales');
 const groupBuyRoutes = require('./routes/groupBuys');
+const trustScoreRoutes = require('./routes/trustScore');
 
 const app = express();
 
@@ -241,6 +242,7 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/referrals', referralRoutes);
 app.use('/api/flash-sales', flashSaleRoutes);
 app.use('/api/group-buys', groupBuyRoutes);
+app.use('/api/trust-score', trustScoreRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
