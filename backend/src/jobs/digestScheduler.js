@@ -115,19 +115,42 @@ const runPriceDropDigest = async () => {
 };
 
 // ---------- Job 3: Saved-search new-match alerts ----------
-const runSavedSearchAlerts = async () => {
-  const runId = await claimRun('saved_search_alerts');
+// `force=true` bypasses the once-per-day claim (used by admin manual-trigger).
+// Respects alert_frequency: 'instant' runs each tick, 'daily' runs once/day,
+// 'weekly' runs once every 7 days (keyed off last_alert_sent).
+const runSavedSearchAlerts = async ({ force = false, frequency = null } = {}) => {
+  const runId = force ? -1 : await claimRun('saved_search_alerts');
   if (!runId) return;
   let notified = 0;
 
+  const filterClauses = [];
+  const filterParams = [];
+  if (frequency) {
+    filterParams.push(frequency);
+    filterClauses.push(`COALESCE(s.alert_frequency, 'daily') = $${filterParams.length}`);
+  }
+  const whereExtra = filterClauses.length ? ` AND ${filterClauses.join(' AND ')}` : '';
+
   const searches = await pool.query(
-    `SELECT s.id, s.user_id, u.email, s.query, s.filters
+    `SELECT s.id, s.user_id, u.email, s.search_query AS query, s.last_alert_sent,
+            COALESCE(s.alert_frequency, 'daily') AS alert_frequency
      FROM saved_searches s
      JOIN users u ON u.id = s.user_id
-     WHERE COALESCE(s.email_alerts, true) = true`
+     WHERE COALESCE(s.email_alerts, true) = true${whereExtra}`,
+    filterParams
   ).catch(() => ({ rows: [] }));
 
+  const now = Date.now();
+
   for (const s of searches.rows) {
+    // Respect cadence unless forced.
+    if (!force) {
+      const last = s.last_alert_sent ? new Date(s.last_alert_sent).getTime() : 0;
+      const elapsed = now - last;
+      if (s.alert_frequency === 'weekly' && elapsed < 7 * 24 * HOUR) continue;
+      if (s.alert_frequency === 'daily' && elapsed < 22 * HOUR) continue;
+      // 'instant' has no cadence gate — runs every tick.
+    }
     // Simple implementation: run an FTS query for the saved query, find new matches since last run
     const lastRun = await pool.query(
       'SELECT last_run_at, last_seen_product_ids FROM saved_search_last_run WHERE saved_search_id = $1',
@@ -155,6 +178,11 @@ const runSavedSearchAlerts = async () => {
       try {
         await sendEmail(s.email, `New matches: ${s.query}`, html, s.user_id, 'saved_search_alert');
         notified++;
+        // Stamp the cadence clock so daily/weekly alerts won't fire again too soon.
+        await pool.query(
+          'UPDATE saved_searches SET last_alert_sent = NOW() WHERE id = $1',
+          [s.id]
+        );
       } catch (_) { /* ignore */ }
     }
 
@@ -169,8 +197,9 @@ const runSavedSearchAlerts = async () => {
     );
   }
 
-  await finishRun(runId, notified);
-  console.log(`[digest] saved_search_alerts: ${notified} users notified`);
+  if (!force) await finishRun(runId, notified);
+  console.log(`[digest] saved_search_alerts: ${notified} users notified${force ? ' (forced)' : ''}`);
+  return { notified };
 };
 
 // ---------- Job 4: Feedback (review) reminders ----------
@@ -269,6 +298,13 @@ const start = () => {
   setInterval(runAll, HOUR);
   // Also run once ~20s after boot (harmless thanks to idempotency)
   setTimeout(() => { runAll().catch(() => {}); }, 20_000);
+
+  // Instant-frequency saved searches: check every 10 minutes (forced, so the
+  // once-per-day claim gate doesn't block them).
+  setInterval(() => {
+    runSavedSearchAlerts({ force: true, frequency: 'instant' }).catch(() => {});
+  }, 10 * 60 * 1000);
+
   console.log('[digest] scheduler started');
 };
 

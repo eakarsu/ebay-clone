@@ -36,6 +36,7 @@ import {
 } from '@mui/icons-material';
 import { categoryService, productService, uploadService, aiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import FeeCalculator from '../components/FeeCalculator';
 
 const steps = ['Basic Info', 'Photos', 'Item Details', 'Pricing', 'Shipping', 'Returns'];
 
@@ -804,6 +805,14 @@ const SellItem = () => {
           </Paper>
         </Grid>
       )}
+
+      <Grid item xs={12}>
+        <FeeCalculator
+          salePrice={formData.buyNowPrice || formData.startingPrice}
+          shippingCost={formData.freeShipping ? 0 : formData.shippingCost}
+          cost={formData.yourCost}
+        />
+      </Grid>
     </Grid>
   );
 

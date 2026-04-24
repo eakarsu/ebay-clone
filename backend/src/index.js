@@ -94,6 +94,8 @@ const analyticsRoutes = require('./routes/analytics');
 const experimentRoutes = require('./routes/experiments');
 const promotionRoutes = require('./routes/promotions');
 const onboardingRoutes = require('./routes/onboarding');
+const lowStockRoutes = require('./routes/lowStock');
+const priceHistoryRoutes = require('./routes/priceHistory');
 
 const app = express();
 
@@ -225,6 +227,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/experiments', experimentRoutes);
 app.use('/api/promotions', promotionRoutes);
 app.use('/api/seller-onboarding', onboardingRoutes);
+app.use('/api/low-stock', lowStockRoutes);
+app.use('/api/price-history', priceHistoryRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -1,6 +1,7 @@
 const { pool } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const feedbackService = require('../services/feedbackService');
+const { checkAndNotifyLowStock } = require('./lowStockController');
 
 // Validate a coupon code against a running subtotal (and optional seller scope).
 // Returns { coupon, discountAmount } or throws a user-facing Error.
@@ -100,6 +101,7 @@ const createOrder = async (req, res, next) => {
     }
 
     const orders = [];
+    const stockChangedProductIds = [];
 
     // Create order for each seller
     for (const [sellerId, sellerItems] of Object.entries(itemsByS)) {
@@ -168,6 +170,7 @@ const createOrder = async (req, res, next) => {
            WHERE id = $2`,
           [item.quantity, item.productId]
         );
+        stockChangedProductIds.push(item.productId);
 
         // Check if sold out
         const updatedProduct = await client.query(
@@ -230,6 +233,10 @@ const createOrder = async (req, res, next) => {
     );
 
     await client.query('COMMIT');
+
+    // Fire low-stock alerts after COMMIT so a notification insert failure
+    // never rolls back the order. Non-blocking.
+    Promise.all(stockChangedProductIds.map((id) => checkAndNotifyLowStock(id))).catch(() => {});
 
     res.status(201).json({
       message: 'Order(s) placed successfully',

@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { runSavedSearchAlerts } = require('../jobs/digestScheduler');
 
 // Create saved search
 const createSavedSearch = async (req, res, next) => {
@@ -298,6 +299,21 @@ const runSavedSearch = async (req, res, next) => {
   }
 };
 
+// POST /api/saved-searches/run-alerts  (admin) — manually trigger the alert job.
+// Useful for testing and one-off pushes; force=true bypasses the once-per-day claim.
+const triggerAlerts = async (req, res, next) => {
+  try {
+    if (!req.user?.isAdmin) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const { frequency } = req.body || {};
+    const result = await runSavedSearchAlerts({ force: true, frequency });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createSavedSearch,
   getSavedSearches,
@@ -305,4 +321,5 @@ module.exports = {
   updateSavedSearch,
   deleteSavedSearch,
   runSavedSearch,
+  triggerAlerts,
 };

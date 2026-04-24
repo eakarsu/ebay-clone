@@ -654,4 +654,21 @@ export const categoryFollowService = {
   unfollow: (categoryId) => api.delete(`/category-follows/${categoryId}`),
 };
 
+// Low-stock Alerts Service
+export const lowStockService = {
+  list: () => api.get('/low-stock'),
+  setThreshold: (productId, threshold) =>
+    api.put(`/low-stock/${productId}`, { threshold }),
+};
+
+// Price History Service
+export const priceHistoryService = {
+  get: (productId, params) => api.get(`/price-history/${productId}`, { params }),
+};
+
+// Saved Search Alerts (admin trigger)
+export const savedSearchAlertService = {
+  triggerAll: (frequency) => api.post('/saved-searches/run-alerts', { frequency }),
+};
+
 export default api;

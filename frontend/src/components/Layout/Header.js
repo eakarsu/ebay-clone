@@ -46,9 +46,12 @@ import {
   LiveTv as LiveIcon,
   Security as VaultIcon,
   Group as TeamIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { useThemeMode } from '../../context/ThemeContext';
 import { getImageUrl } from '../../services/api';
 import LanguageSwitcher from '../common/LanguageSwitcher';
 
@@ -59,6 +62,7 @@ const Header = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const { cart } = useCart();
+  const { mode, toggleMode } = useThemeMode();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [anchorEl, setAnchorEl] = useState(null);
@@ -104,7 +108,7 @@ const Header = () => {
   return (
     <>
       {/* Top bar */}
-      <AppBar position="static" sx={{ bgcolor: 'white', color: 'text.primary' }} elevation={0}>
+      <AppBar position="static" sx={{ bgcolor: 'background.paper', color: 'text.primary' }} elevation={0}>
         <Container maxWidth="xl">
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5, fontSize: '0.75rem' }}>
             <Box sx={{ display: 'flex', gap: 2 }}>
@@ -153,7 +157,7 @@ const Header = () => {
       </AppBar>
 
       {/* Main header */}
-      <AppBar position="sticky" sx={{ bgcolor: 'white', color: 'text.primary' }} elevation={1}>
+      <AppBar position="sticky" sx={{ bgcolor: 'background.paper', color: 'text.primary' }} elevation={1}>
         <Container maxWidth="xl">
           <Toolbar sx={{ py: 1 }}>
             {isMobile && (
@@ -226,6 +230,9 @@ const Header = () => {
 
             {/* Actions */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton onClick={toggleMode} aria-label="toggle dark mode">
+                {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+              </IconButton>
               <LanguageSwitcher />
               {user ? (
                 <>

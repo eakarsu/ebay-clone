@@ -56,6 +56,7 @@ import SimilarItems from '../components/Features/SimilarItems';
 import AuctionChat from '../components/Features/AuctionChat';
 import VacationBanner from '../components/Features/VacationBanner';
 import PriceAlert from '../components/Features/PriceAlert';
+import PriceHistoryChart from '../components/PriceHistoryChart';
 import SocialShare from '../components/Features/SocialShare';
 
 const ProductDetail = () => {
@@ -471,6 +472,11 @@ const ProductDetail = () => {
               Price Alert
             </Button>
             <SocialShare product={product} />
+          </Box>
+
+          {/* Price history */}
+          <Box sx={{ mb: 2 }}>
+            <PriceHistoryChart productId={product.id} />
           </Box>
 
           {/* Shipping */}
