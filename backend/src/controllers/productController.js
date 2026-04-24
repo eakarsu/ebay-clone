@@ -464,8 +464,10 @@ const createProduct = async (req, res, next) => {
       yourCost, countryOfOrigin,
     } = req.body;
 
-    // Content moderation — block outright, or flag pending review
-    const mod = await screenListing({ title, description, brand });
+    // Content moderation — block outright, or flag pending review.
+    // The AI layer consults the category, so pass it through (name is better than UUID
+    // for the model, but UUID is fine as a rough signal).
+    const mod = await screenListing({ title, description, brand, category: categoryId });
     if (mod.decision === 'block') {
       return res.status(400).json({
         error: 'Listing violates our policies',

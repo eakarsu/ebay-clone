@@ -96,6 +96,8 @@ const promotionRoutes = require('./routes/promotions');
 const onboardingRoutes = require('./routes/onboarding');
 const lowStockRoutes = require('./routes/lowStock');
 const priceHistoryRoutes = require('./routes/priceHistory');
+const imageSearchRoutes = require('./routes/imageSearch');
+const shoppingAssistantRoutes = require('./routes/shoppingAssistant');
 
 const app = express();
 
@@ -229,6 +231,8 @@ app.use('/api/promotions', promotionRoutes);
 app.use('/api/seller-onboarding', onboardingRoutes);
 app.use('/api/low-stock', lowStockRoutes);
 app.use('/api/price-history', priceHistoryRoutes);
+app.use('/api/image-search', imageSearchRoutes);
+app.use('/api/shopping-assistant', shoppingAssistantRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

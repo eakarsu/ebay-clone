@@ -48,6 +48,7 @@ import {
   Group as TeamIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
+  PhotoCamera as PhotoCameraIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
@@ -213,6 +214,14 @@ const Header = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 sx={{ flex: 1, px: 2, py: 1 }}
               />
+              <IconButton
+                component={Link}
+                to="/image-search"
+                aria-label="search by photo"
+                sx={{ mx: 0.5 }}
+              >
+                <PhotoCameraIcon />
+              </IconButton>
               <Button
                 type="submit"
                 variant="contained"

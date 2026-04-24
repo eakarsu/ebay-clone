@@ -1,12 +1,19 @@
 const { pool } = require('../config/database');
+const aiService = require('./aiService');
+
+// Pick the stricter of two decisions. Ordering: allow < flag < block.
+const severityRank = { allow: 0, flag: 1, block: 2 };
+const stricterDecision = (a, b) =>
+  (severityRank[a] ?? 0) >= (severityRank[b] ?? 0) ? a : b;
 
 /**
  * Screen a product listing for prohibited content.
  * Fast path: regex/substring match against DB-loaded terms.
- * Optional slow path: AI classification via aiService if AI_MODERATION=true.
+ * Slow path: AI classifier (Claude via aiService). Runs when AI_MODERATION=true.
+ *           The final decision is the stricter of the two signals.
  *
- * @param {{title:string, description?:string, brand?:string}} listing
- * @returns {Promise<{decision:'allow'|'block'|'flag', matched:string[], categories:string[]}>}
+ * @param {{title:string, description?:string, brand?:string, category?:string}} listing
+ * @returns {Promise<{decision:'allow'|'block'|'flag', matched:string[], categories:string[], aiReason?:string, aiConfidence?:number}>}
  */
 const screenListing = async (listing) => {
   const text = [listing.title, listing.description, listing.brand]
@@ -37,7 +44,39 @@ const screenListing = async (listing) => {
     }
   }
 
-  return { decision, matched, categories: Array.from(categories) };
+  // AI classifier is opt-in (requires key + env flag) and skipped if the fast
+  // path already blocked — no point spending a model call.
+  let aiReason;
+  let aiConfidence;
+  if (
+    process.env.AI_MODERATION === 'true' &&
+    process.env.OPENROUTER_API_KEY &&
+    decision !== 'block'
+  ) {
+    try {
+      const ai = await aiService.classifyListingPolicy({
+        title: listing.title,
+        description: listing.description,
+        category: listing.category,
+      });
+      if (ai.success) {
+        decision = stricterDecision(decision, ai.decision);
+        aiReason = ai.reason;
+        aiConfidence = ai.confidence;
+        (ai.categories || []).forEach((c) => categories.add(c));
+      }
+    } catch (_) {
+      // AI failure never blocks a listing — degrade to the fast-path decision.
+    }
+  }
+
+  return {
+    decision,
+    matched,
+    categories: Array.from(categories),
+    ...(aiReason !== undefined ? { aiReason } : {}),
+    ...(aiConfidence !== undefined ? { aiConfidence } : {}),
+  };
 };
 
 const recordReport = async (productId, result) => {

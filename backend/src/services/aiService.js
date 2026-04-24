@@ -564,6 +564,84 @@ Please provide:
     }
   }
 
+  // Extract searchable attributes from an uploaded image (vision).
+  // `imageUrl` must be publicly reachable by OpenRouter OR a data: URL.
+  async extractImageAttributes({ imageUrl }) {
+    const messages = [
+      {
+        role: 'system',
+        content:
+          'You are a visual product cataloger. Given a product photo, extract concise attributes that would match it on an e-commerce site. Output strict JSON only — no prose.',
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text:
+              'Look at the product in this image and return JSON with the following keys: ' +
+              '{"title":string (<= 80 chars, like an eBay listing title), ' +
+              '"category":string (broad: Electronics, Clothing, Home, Collectibles, Motors, Toys, Books, Sports, Beauty, Other), ' +
+              '"brand":string|null, "color":string|null, "keywords":string[] (5-10 searchable nouns/adjectives)}. ' +
+              'Return ONLY the JSON object.',
+          },
+          { type: 'image_url', image_url: { url: imageUrl } },
+        ],
+      },
+    ];
+
+    try {
+      const response = await this.makeRequest(messages, { maxTokens: 400, temperature: 0.2 });
+      const raw = response.choices?.[0]?.message?.content || '';
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('Model did not return JSON');
+      const parsed = JSON.parse(match[0]);
+      return { success: true, attributes: parsed, usage: response.usage };
+    } catch (error) {
+      return { success: false, error: error.message, attributes: null };
+    }
+  }
+
+  // Classify a listing draft for policy violations. Returns a discrete
+  // decision plus a confidence score. Paired with the regex/term pass in
+  // moderationService — we use this as a second opinion.
+  async classifyListingPolicy({ title, description, category }) {
+    const messages = [
+      {
+        role: 'system',
+        content:
+          'You are an eBay trust-and-safety classifier. Decide whether a listing draft is policy-compliant. Respond with strict JSON only.',
+      },
+      {
+        role: 'user',
+        content:
+          `Listing draft:\nTitle: ${title}\nCategory: ${category || 'unspecified'}\nDescription: ${description || ''}\n\n` +
+          'Policy categories to consider: weapons, drugs, counterfeit, adult, recalled/hazardous, stolen goods, ' +
+          'regulated items (medical, financial), hate speech, misleading claims.\n\n' +
+          'Return JSON: {"decision":"allow"|"flag"|"block", "reason":string, "categories":string[], "confidence":number (0..1)}.',
+      },
+    ];
+
+    try {
+      const response = await this.makeRequest(messages, { maxTokens: 300, temperature: 0.1 });
+      const raw = response.choices?.[0]?.message?.content || '';
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('Model did not return JSON');
+      const parsed = JSON.parse(match[0]);
+      const decision = ['allow', 'flag', 'block'].includes(parsed.decision) ? parsed.decision : 'flag';
+      return {
+        success: true,
+        decision,
+        reason: parsed.reason || '',
+        categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+        usage: response.usage,
+      };
+    } catch (error) {
+      return { success: false, error: error.message, decision: 'allow' };
+    }
+  }
+
   // Chat support
   async chatSupport(conversation, userContext = {}) {
     const messages = [

@@ -59,6 +59,7 @@ import ApiKeys from './pages/ApiKeys';
 import BestMatchAdmin from './pages/BestMatchAdmin';
 import ExperimentsAdmin from './pages/ExperimentsAdmin';
 import LowStockAlerts from './pages/LowStockAlerts';
+import ImageSearch from './pages/ImageSearch';
 
 // Footer/Info Pages
 import Help from './pages/Help';
@@ -186,6 +187,7 @@ function App() {
                 <Route path="/admin/best-match" element={<BestMatchAdmin />} />
                 <Route path="/admin/experiments" element={<ExperimentsAdmin />} />
                 <Route path="/seller/low-stock" element={<LowStockAlerts />} />
+                <Route path="/image-search" element={<ImageSearch />} />
 
                 {/* Latest eBay 2025-2026 Feature Routes */}
                 <Route path="/deals" element={<DailyDeals />} />

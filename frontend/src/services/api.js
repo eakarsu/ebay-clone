@@ -671,4 +671,21 @@ export const savedSearchAlertService = {
   triggerAll: (frequency) => api.post('/saved-searches/run-alerts', { frequency }),
 };
 
+// Image Search — accepts a File (multipart) OR { imageUrl }
+export const imageSearchService = {
+  byFile: (file) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    return api.post('/image-search', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  byUrl: (imageUrl) => api.post('/image-search', { imageUrl }),
+};
+
+// AI Shopping Assistant
+export const shoppingAssistantService = {
+  chat: (messages) => api.post('/shopping-assistant/chat', { messages }),
+};
+
 export default api;
