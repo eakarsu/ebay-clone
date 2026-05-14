@@ -11,6 +11,7 @@ const {
   removePaymentMethod,
   handleWebhook,
   getPaymentHistory,
+  sellerPayout,
 } = require('../controllers/paymentController');
 const { authenticateToken } = require('../middleware/auth');
 
@@ -26,6 +27,7 @@ router.use(authenticateToken);
 router.post('/create-intent', createPaymentIntent);
 router.post('/confirm', confirmPayment);
 router.post('/refund', processRefund);
+router.post('/seller-payout', sellerPayout);
 router.get('/methods', getPaymentMethods);
 router.post('/methods', addPaymentMethod);
 router.post('/methods/direct', addPaymentMethodDirect);

@@ -48,6 +48,8 @@ import Compare from './pages/Compare';
 import GiftCards from './pages/GiftCards';
 import PublicWishlist from './pages/PublicWishlist';
 import SellerEarnings from './pages/SellerEarnings';
+import SellerRoi from './pages/SellerRoi';
+import SnipingSettings from './pages/SnipingSettings';
 import BundleDiscounts from './pages/BundleDiscounts';
 import MyFeed from './pages/MyFeed';
 import Invoices from './pages/Invoices';
@@ -101,6 +103,7 @@ import Messages from './pages/Messages';
 
 // AI Features Page
 import AIFeatures from './pages/AIFeatures';
+import AIDemandReputation from './pages/AIDemandReputation';
 import SellerOnboarding from './pages/SellerOnboarding';
 
 // Latest eBay 2025-2026 Feature Pages
@@ -181,6 +184,8 @@ function App() {
                 <Route path="/gift-cards" element={<GiftCards />} />
                 <Route path="/wishlist/share/:token" element={<PublicWishlist />} />
                 <Route path="/seller/earnings" element={<SellerEarnings />} />
+                <Route path="/seller/roi" element={<SellerRoi />} />
+                <Route path="/seller/sniping/:productId" element={<SnipingSettings />} />
                 <Route path="/seller/bundle-discounts" element={<BundleDiscounts />} />
                 <Route path="/my-feed" element={<MyFeed />} />
                 <Route path="/invoices" element={<Invoices />} />
@@ -257,6 +262,7 @@ function App() {
                 {/* AI Features */}
                 <Route path="/ai-features" element={<AIFeatures />} />
                 <Route path="/ai" element={<AIFeatures />} />
+                <Route path="/ai-demand-reputation" element={<AIDemandReputation />} />
 
                 {/* Security Feature Routes */}
                 <Route path="/security-audit" element={<SecurityAudit />} />

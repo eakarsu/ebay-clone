@@ -366,6 +366,8 @@ export const aiService = {
   generateMessageReply: (data) => api.post('/ai/message-reply', data),
   analyzeImage: (data) => api.post('/ai/analyze-image', data),
   getBackgroundSuggestions: (data) => api.post('/ai/background-suggestions', data),
+  predictDemand: (data) => api.post('/ai/predict-demand', data),
+  predictSellerReputation: (data) => api.post('/ai/seller-reputation', data),
 };
 
 // Seller Performance
@@ -758,6 +760,27 @@ export const groupBuyService = {
   create: (payload) => api.post('/group-buys', payload),
   commit: (id, quantity) => api.post(`/group-buys/${id}/commit`, { quantity }),
   withdraw: (id) => api.delete(`/group-buys/${id}/commit`),
+};
+
+// AI results history (cross-project ai_results JSONB pattern).
+export const aiResultsService = {
+  list: (resourceType, resourceId, { limit = 25, offset = 0 } = {}) =>
+    api.get(`/ai-results/${resourceType}/${resourceId}?limit=${limit}&offset=${offset}`),
+  latest: (resourceType, resourceId, feature) =>
+    api.get(`/ai-results/${resourceType}/${resourceId}/latest/${feature}`),
+};
+
+// Auction sniping protection per-listing config.
+export const snipingService = {
+  get:    (productId)        => api.get(`/sniping/${productId}`),
+  update: (productId, body)  => api.put(`/sniping/${productId}`, body),
+};
+
+// Seller ROI dashboard with AI summary.
+export const sellerRoiService = {
+  list:    ({ since, limit = 50, offset = 0 } = {}) =>
+    api.get(`/seller/roi?limit=${limit}&offset=${offset}${since ? `&since=${since}` : ''}`),
+  summary: (days = 30) => api.post('/seller/roi/summary', { days }),
 };
 
 export default api;

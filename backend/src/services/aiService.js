@@ -1,12 +1,14 @@
 // OpenRouter AI Service
-// Uses Claude Haiku for AI-powered features
+// Uses Claude (Sonnet 3.5) for AI-powered features.
 
 const https = require('https');
+const { parseAIJson } = require('../utils/parseAIJson');
 
 class AIService {
   constructor() {
     this.apiKey = process.env.OPENROUTER_API_KEY;
-    this.model = process.env.OPENROUTER_MODEL || 'anthropic/claude-haiku-4.5';
+    // Cross-project standardized model. Override via env for cost tuning.
+    this.model = process.env.OPENROUTER_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
     this.baseUrl = 'openrouter.ai';
   }
 
@@ -593,10 +595,10 @@ Please provide:
     try {
       const response = await this.makeRequest(messages, { maxTokens: 400, temperature: 0.2 });
       const raw = response.choices?.[0]?.message?.content || '';
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error('Model did not return JSON');
-      const parsed = JSON.parse(match[0]);
-      return { success: true, attributes: parsed, usage: response.usage };
+      // Robust 3-strategy JSON parser — fence strip → balanced extract → cleanup.
+      const parsed = parseAIJson(raw);
+      if (!parsed.ok) throw new Error(parsed.error || 'Model did not return JSON');
+      return { success: true, attributes: parsed.data, usage: response.usage };
     } catch (error) {
       return { success: false, error: error.message, attributes: null };
     }
@@ -625,16 +627,16 @@ Please provide:
     try {
       const response = await this.makeRequest(messages, { maxTokens: 300, temperature: 0.1 });
       const raw = response.choices?.[0]?.message?.content || '';
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error('Model did not return JSON');
-      const parsed = JSON.parse(match[0]);
-      const decision = ['allow', 'flag', 'block'].includes(parsed.decision) ? parsed.decision : 'flag';
+      const parsed = parseAIJson(raw, { fallback: { decision: 'flag', reason: 'parse failure', categories: [], confidence: 0 } });
+      if (!parsed.ok) throw new Error(parsed.error || 'Model did not return JSON');
+      const obj = parsed.data || {};
+      const decision = ['allow', 'flag', 'block'].includes(obj.decision) ? obj.decision : 'flag';
       return {
         success: true,
         decision,
-        reason: parsed.reason || '',
-        categories: Array.isArray(parsed.categories) ? parsed.categories : [],
-        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+        reason: obj.reason || '',
+        categories: Array.isArray(obj.categories) ? obj.categories : [],
+        confidence: typeof obj.confidence === 'number' ? obj.confidence : 0.5,
         usage: response.usage,
       };
     } catch (error) {
@@ -673,6 +675,64 @@ Be friendly, professional, and helpful. If you cannot resolve an issue, suggest 
         error: error.message,
         response: null,
       };
+    }
+  }
+
+  // Audit-driven addition: "Predictive demand (trending categories, seasonal patterns)".
+  async predictDemand({ category, sku, timeframe, recentSales, contextNotes }) {
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are an e-commerce demand forecaster. Respond ONLY with strict JSON of the form: {"demand_level": "low|medium|high|very_high", "expected_unit_sales": <number>, "confidence": "low|medium|high", "drivers": [<strings>], "risks": [<strings>], "recommended_actions": [<strings>]}. No prose outside JSON.',
+      },
+      {
+        role: 'user',
+        content: `Forecast demand for the upcoming ${timeframe || '30 days'}.\nCategory: ${category || 'unspecified'}\nSKU: ${sku || 'unspecified'}\nRecent sales (last 30d): ${JSON.stringify(recentSales || [])}\nNotes: ${contextNotes || 'none'}`,
+      },
+    ];
+
+    try {
+      const response = await this.makeRequest(messages, { maxTokens: 800, temperature: 0.4 });
+      const raw = response.choices?.[0]?.message?.content || '';
+      const parsed = parseAIJson(raw) || {};
+      return {
+        success: true,
+        forecast: parsed,
+        model: response.model,
+        usage: response.usage,
+        raw,
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Audit-driven addition: "Seller reputation prediction".
+  async predictSellerReputation({ sellerId, historicalMetrics, recentReviews, disputeStats }) {
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are an e-commerce trust-and-safety analyst predicting a seller\'s 90-day reputation trajectory. Respond ONLY with strict JSON of the form: {"reputation_score_now": <0-100>, "predicted_score_in_90d": <0-100>, "trend": "improving|stable|declining", "risk_signals": [<strings>], "growth_signals": [<strings>], "recommended_interventions": [<strings>]}. No prose outside JSON.',
+      },
+      {
+        role: 'user',
+        content: `Seller ID: ${sellerId || 'unknown'}\nHistorical metrics: ${JSON.stringify(historicalMetrics || {})}\nRecent reviews (sample): ${JSON.stringify((recentReviews || []).slice(0, 50))}\nDispute stats: ${JSON.stringify(disputeStats || {})}`,
+      },
+    ];
+
+    try {
+      const response = await this.makeRequest(messages, { maxTokens: 900, temperature: 0.3 });
+      const raw = response.choices?.[0]?.message?.content || '';
+      const parsed = parseAIJson(raw) || {};
+      return {
+        success: true,
+        analysis: parsed,
+        model: response.model,
+        usage: response.usage,
+        raw,
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
     }
   }
 }
