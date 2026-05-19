@@ -17,13 +17,14 @@ const {
 } = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/auth');
 const { validations, handleValidation } = require('../middleware/validate');
+const { authRateLimit } = require('../middleware/rateLimits');
 
-// Public routes
-router.post('/register', validations.register, handleValidation, register);
-router.post('/login', validations.login, handleValidation, login);
+// Public routes — rate-limited to 5 attempts per 15 min per IP
+router.post('/register', authRateLimit, validations.register, handleValidation, register);
+router.post('/login', authRateLimit, validations.login, handleValidation, login);
 router.get('/verify-email', verifyEmail);
-router.post('/forgot-password', forgotPassword);
-router.post('/reset-password', resetPassword);
+router.post('/forgot-password', authRateLimit, forgotPassword);
+router.post('/reset-password', authRateLimit, resetPassword);
 
 // Protected routes
 router.post('/logout', authenticateToken, logout);

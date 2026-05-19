@@ -1,11 +1,12 @@
 // AI Controller - Handles all AI-powered features using OpenRouter
 
 const aiService = require('../services/aiService');
+const aiResultsStore = require('../services/aiResultsStore');
 
 // Generate product description
 exports.generateDescription = async (req, res) => {
   try {
-    const { title, category, condition, price, features } = req.body;
+    const { title, category, condition, price, features, productId } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Product title is required' });
@@ -20,6 +21,19 @@ exports.generateDescription = async (req, res) => {
     });
 
     if (result.success) {
+      // Persist into ai_results so the seller dashboard can show "last AI
+      // description" without re-asking the model.
+      aiResultsStore.record({
+        userId: req.user?.id || null,
+        resourceType: 'listing',
+        resourceId: productId || `draft-${Date.now()}`,
+        feature: 'description',
+        model: result.model,
+        usage: result.usage,
+        payload: { description: result.description, title, category },
+        raw: result.description,
+      }).catch(() => {});
+
       res.json({
         success: true,
         data: {
@@ -439,5 +453,94 @@ exports.chatSupport = async (req, res) => {
   } catch (error) {
     console.error('AI Chat Error:', error);
     res.status(500).json({ error: 'Failed to process chat message' });
+  }
+};
+
+// Audit-driven addition: "Predictive demand (trending categories, seasonal patterns)".
+exports.predictDemand = async (req, res) => {
+  try {
+    const { category, sku, timeframe, recentSales, contextNotes } = req.body;
+    if (!category && !sku) {
+      return res.status(400).json({ error: 'category or sku is required' });
+    }
+
+    const result = await aiService.predictDemand({
+      category,
+      sku,
+      timeframe,
+      recentSales,
+      contextNotes,
+    });
+
+    if (result.success) {
+      aiResultsStore.record({
+        userId: req.user?.id || null,
+        resourceType: sku ? 'listing' : 'category',
+        resourceId: sku || category,
+        feature: 'demand-forecast',
+        model: result.model,
+        usage: result.usage,
+        payload: result.forecast,
+        raw: result.raw,
+      }).catch(() => {});
+
+      res.json({
+        success: true,
+        data: {
+          forecast: result.forecast,
+          model: result.model,
+          tokens: result.usage,
+        },
+      });
+    } else {
+      res.status(500).json({ success: false, error: result.error || 'Failed to forecast demand' });
+    }
+  } catch (error) {
+    console.error('AI Demand Forecast Error:', error);
+    res.status(500).json({ error: 'Failed to forecast demand' });
+  }
+};
+
+// Audit-driven addition: "Seller reputation prediction".
+exports.predictSellerReputation = async (req, res) => {
+  try {
+    const { sellerId, historicalMetrics, recentReviews, disputeStats } = req.body;
+    if (!sellerId) {
+      return res.status(400).json({ error: 'sellerId is required' });
+    }
+
+    const result = await aiService.predictSellerReputation({
+      sellerId,
+      historicalMetrics,
+      recentReviews,
+      disputeStats,
+    });
+
+    if (result.success) {
+      aiResultsStore.record({
+        userId: req.user?.id || null,
+        resourceType: 'seller',
+        resourceId: sellerId,
+        feature: 'reputation-forecast',
+        model: result.model,
+        usage: result.usage,
+        payload: result.analysis,
+        raw: result.raw,
+      }).catch(() => {});
+
+      res.json({
+        success: true,
+        data: {
+          analysis: result.analysis,
+          model: result.model,
+          tokens: result.usage,
+        },
+      });
+    } else {
+      res.status(500).json({ success: false, error: result.error || 'Failed to predict seller reputation' });
+    }
+  } catch (error) {
+    console.error('AI Seller Reputation Error:', error);
+    res.status(500).json({ error: 'Failed to predict seller reputation' });
   }
 };

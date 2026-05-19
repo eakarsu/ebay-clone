@@ -5,6 +5,12 @@ const router = express.Router();
 const aiController = require('../controllers/aiController');
 const { suggestSmartPrice } = require('../controllers/smartPricingController');
 const { authenticateToken, optionalAuth } = require('../middleware/auth');
+const { aiRateLimit } = require('../middleware/rateLimits');
+
+// All AI endpoints share the per-user 20/hr budget. Authenticated users key by
+// userId; anonymous calls fall back to the IP. Without this, a single user
+// could drain the OpenRouter spend overnight.
+router.use(aiRateLimit);
 
 // Generate product description (auth required for sellers)
 router.post('/generate-description', optionalAuth, aiController.generateDescription);
@@ -44,5 +50,12 @@ router.post('/analyze-image', optionalAuth, aiController.analyzeProductImage);
 
 // Get background enhancement suggestions
 router.post('/background-suggestions', optionalAuth, aiController.getBackgroundSuggestions);
+
+// Audit-driven additions:
+// "Predictive demand (trending categories, seasonal patterns)"
+router.post('/predict-demand', optionalAuth, aiController.predictDemand);
+
+// "Seller reputation prediction"
+router.post('/seller-reputation', authenticateToken, aiController.predictSellerReputation);
 
 module.exports = router;

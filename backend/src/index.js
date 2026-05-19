@@ -106,6 +106,11 @@ const groupBuyRoutes = require('./routes/groupBuys');
 const trustScoreRoutes = require('./routes/trustScore');
 const sellerFollowsModule = require('./routes/sellerFollows');
 
+// Cross-project ai_results JSONB tracking, sniping protection config + seller ROI dashboard.
+const aiResultsRoutes = require('./routes/aiResults');
+const snipingRoutes   = require('./routes/sniping');
+const sellerRoiRoutes = require('./routes/sellerRoi');
+
 const app = express();
 
 // Trust proxy headers from loopback (localhost) only. Needed so express-rate-limit
@@ -137,8 +142,18 @@ app.use(helmet({
 }));
 
 // Middleware
+// CORS: comma-separated allowlist via CORS_ORIGIN. Falls back to FRONTEND_URL,
+// then localhost:3000. Closes the audit gap "no env-driven CORS allowlist".
+const corsAllow = (process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin(origin, cb) {
+    if (!origin) return cb(null, true); // server-to-server / curl
+    if (corsAllow.includes(origin)) return cb(null, true);
+    return cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
 }));
 
@@ -251,6 +266,22 @@ app.use('/api/sellers', sellerFollowsModule.router);
 app.get('/api/feed', authenticateToken, sellerFollowsModule.getFollowingFeed);
 app.get('/api/me/following', authenticateToken, sellerFollowsModule.getMyFollowing);
 
+// GDPR / user data management
+const usersRoutes = require('./routes/users');
+app.use('/api/users', usersRoutes);
+
+// AI Results history (read-only) + auction sniping protection + seller ROI dashboard.
+app.use('/api/ai-results', aiResultsRoutes);
+app.use('/api/sniping',    snipingRoutes);
+app.use('/api/seller/roi', sellerRoiRoutes);
+app.use('/api/custom', require('./routes/customFeatures'));
+// // === Batch 09 Gaps & Frontend Mounts ===
+app.use('/api/gap-ai-ebay', require('./routes/batch09GapAi'));
+app.use('/api/gap-nonai-ebay', require('./routes/batch09GapNonai'));
+
+// Custom Views (Seller Views) — mounted BEFORE notFound on purpose
+app.use('/api/custom-views', require('./routes/customViews'));
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -282,6 +313,14 @@ const startServer = async () => {
       require('./jobs/digestScheduler').start();
     } catch (err) {
       console.warn('Digest scheduler failed to start:', err.message);
+    }
+
+    // AI Listing Optimizer — nightly re-score of active listings with
+    // structured suggestions written to products + ai_results.
+    try {
+      require('./jobs/listingOptimizerScheduler').start();
+    } catch (err) {
+      console.warn('Listing optimizer scheduler failed to start:', err.message);
     }
 
     // Cleanup expired blacklisted tokens every hour

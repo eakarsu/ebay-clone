@@ -2,8 +2,10 @@ const { pool } = require('../config/database');
 const realtime = require('../realtime/socket');
 const { checkBidRisk } = require('../services/fraudService');
 
-const SOFT_CLOSE_WINDOW_SECONDS = 60;   // extend auction if bid lands within this many seconds of end
-const SOFT_CLOSE_EXTENSION_SECONDS = 120; // extend by this much
+// Default fallbacks if a listing row predates the per-listing config columns.
+const DEFAULT_SOFT_CLOSE_WINDOW_SECONDS = 60;
+const DEFAULT_SOFT_CLOSE_EXTENSION_SECONDS = 120;
+const DEFAULT_MAX_EXTENSIONS = 10;
 
 const placeBid = async (req, res, next) => {
   const { productId, bidAmount, maxBidAmount } = req.body;
@@ -23,12 +25,19 @@ const placeBid = async (req, res, next) => {
   try {
     await client.query('BEGIN');
 
-    // Get product details
+    // Get product details (incl. per-listing soft-close config). The COALESCE
+    // pattern keeps the query backwards compatible with rows created before
+    // the soft-close columns were added.
     const productResult = await client.query(
       `SELECT id, seller_id, listing_type, current_price, starting_price, reserve_price,
-              auction_end, bid_count, status
+              auction_end, bid_count, status,
+              COALESCE(soft_extend_enabled, TRUE)        AS soft_extend_enabled,
+              COALESCE(soft_extend_window_sec, $2)        AS soft_extend_window_sec,
+              COALESCE(soft_extend_amount_sec, $3)        AS soft_extend_amount_sec,
+              COALESCE(max_extensions, $4)                AS max_extensions,
+              COALESCE(extensions_count, 0)               AS extensions_count
        FROM products WHERE id = $1 FOR UPDATE`,
-      [productId]
+      [productId, DEFAULT_SOFT_CLOSE_WINDOW_SECONDS, DEFAULT_SOFT_CLOSE_EXTENSION_SECONDS, DEFAULT_MAX_EXTENSIONS]
     );
 
     if (productResult.rows.length === 0) {
@@ -81,9 +90,20 @@ const placeBid = async (req, res, next) => {
       [productId, req.user.id, bidAmount, maxBidAmount || bidAmount]
     );
 
-    // Soft close: if auction ends within the soft-close window, extend it.
+    // Auction sniping protection: if the bid lands within the listing's
+    // soft-close window AND we haven't blown past max_extensions, push the
+    // end_time out by the listing's soft_extend_amount_sec. This implements
+    // the "Auction Sniping Protection" feature from the audit.
     const msToEnd = new Date(product.auction_end).getTime() - Date.now();
-    const extend = msToEnd > 0 && msToEnd < SOFT_CLOSE_WINDOW_SECONDS * 1000;
+    const windowSec = Number(product.soft_extend_window_sec) || DEFAULT_SOFT_CLOSE_WINDOW_SECONDS;
+    const amountSec = Number(product.soft_extend_amount_sec) || DEFAULT_SOFT_CLOSE_EXTENSION_SECONDS;
+    const maxExt    = Number(product.max_extensions)         || DEFAULT_MAX_EXTENSIONS;
+    const usedExt   = Number(product.extensions_count)       || 0;
+    const enabled   = product.soft_extend_enabled !== false;
+    const extend = enabled
+      && msToEnd > 0
+      && msToEnd < windowSec * 1000
+      && usedExt < maxExt;
 
     // Update product (optionally extending auction_end)
     if (extend) {
@@ -95,7 +115,7 @@ const placeBid = async (req, res, next) => {
              extensions_count = COALESCE(extensions_count, 0) + 1,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
-        [bidAmount, productId, String(SOFT_CLOSE_EXTENSION_SECONDS)]
+        [bidAmount, productId, String(amountSec)]
       );
     } else {
       await client.query(

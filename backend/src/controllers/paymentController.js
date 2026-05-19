@@ -498,6 +498,107 @@ const handlePaymentFailure = async (paymentIntent) => {
   );
 };
 
+// Seller payout via Stripe Connect transfer
+const sellerPayout = async (req, res, next) => {
+  try {
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId is required' });
+    }
+
+    // Only admins can trigger payouts (or automate this via webhook)
+    if (!req.user.is_admin) {
+      return res.status(403).json({ error: 'Only admins can trigger seller payouts' });
+    }
+
+    // Get the order with seller info
+    const orderResult = await pool.query(
+      `SELECT o.*, u.stripe_account_id as seller_stripe_account_id, u.email as seller_email
+       FROM orders o
+       JOIN users u ON o.seller_id = u.id
+       WHERE o.id = $1`,
+      [orderId]
+    );
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const order = orderResult.rows[0];
+
+    if (order.payment_status !== 'completed') {
+      return res.status(400).json({ error: 'Order payment has not been completed' });
+    }
+
+    if (!order.seller_stripe_account_id) {
+      return res.status(400).json({
+        error: 'Seller does not have a connected Stripe account (stripe_account_id missing)',
+      });
+    }
+
+    // Check if payout already happened
+    const existingPayout = await pool.query(
+      'SELECT id FROM seller_payouts WHERE order_id = $1 AND status = $2',
+      [orderId, 'succeeded']
+    );
+    if (existingPayout.rows.length > 0) {
+      return res.status(400).json({ error: 'Payout for this order has already been processed' });
+    }
+
+    // Platform fee: 10% (adjust as needed)
+    const platformFeeRate = parseFloat(process.env.PLATFORM_FEE_RATE || '0.10');
+    const grossAmount = parseFloat(order.total);
+    const platformFee = Math.round(grossAmount * platformFeeRate * 100); // cents
+    const transferAmount = Math.round(grossAmount * 100) - platformFee; // cents
+
+    if (transferAmount <= 0) {
+      return res.status(400).json({ error: 'Transfer amount after fees must be positive' });
+    }
+
+    // Create Stripe Connect transfer
+    const transfer = await stripe.transfers.create({
+      amount: transferAmount,
+      currency: 'usd',
+      destination: order.seller_stripe_account_id,
+      metadata: {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        sellerId: order.seller_id,
+      },
+    });
+
+    // Record the payout
+    await pool.query(
+      `INSERT INTO seller_payouts (order_id, seller_id, stripe_transfer_id, gross_amount, platform_fee, net_amount, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'succeeded', CURRENT_TIMESTAMP)
+       ON CONFLICT (order_id) DO UPDATE
+         SET stripe_transfer_id = EXCLUDED.stripe_transfer_id,
+             status = 'succeeded',
+             updated_at = CURRENT_TIMESTAMP`,
+      [
+        orderId,
+        order.seller_id,
+        transfer.id,
+        grossAmount,
+        platformFee / 100,
+        transferAmount / 100,
+      ]
+    );
+
+    res.json({
+      success: true,
+      transferId: transfer.id,
+      grossAmount,
+      platformFee: platformFee / 100,
+      netAmount: transferAmount / 100,
+      destination: order.seller_stripe_account_id,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Get payment history
 const getPaymentHistory = async (req, res, next) => {
   try {
@@ -551,4 +652,5 @@ module.exports = {
   removePaymentMethod,
   handleWebhook,
   getPaymentHistory,
+  sellerPayout,
 };
