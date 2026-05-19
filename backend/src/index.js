@@ -279,6 +279,9 @@ app.use('/api/custom', require('./routes/customFeatures'));
 app.use('/api/gap-ai-ebay', require('./routes/batch09GapAi'));
 app.use('/api/gap-nonai-ebay', require('./routes/batch09GapNonai'));
 
+// Custom Views (Seller Views) — mounted BEFORE notFound on purpose
+app.use('/api/custom-views', require('./routes/customViews'));
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

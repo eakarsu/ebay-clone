@@ -120,6 +120,9 @@ import ErrorLogs from './pages/ErrorLogs';
 import PasswordPolicies from './pages/PasswordPolicies';
 import ValidationRules from './pages/ValidationRules';
 
+// Custom Seller Views (custom-views feature)
+import CustomViewsPage from './pages/CustomViewsPage';
+
 function App() {
   return (
     <ErrorBoundary>
@@ -270,6 +273,9 @@ function App() {
                 <Route path="/error-logs" element={<ErrorLogs />} />
                 <Route path="/password-policies" element={<PasswordPolicies />} />
                 <Route path="/validation-rules" element={<ValidationRules />} />
+
+                {/* Custom Seller Views */}
+                <Route path="/custom-views" element={<CustomViewsPage />} />
 
                 {/* Catch-all route */}
                 <Route path="*" element={<Home />} />
