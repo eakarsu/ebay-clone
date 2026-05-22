@@ -274,6 +274,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/ai-results', aiResultsRoutes);
 app.use('/api/sniping',    snipingRoutes);
 app.use('/api/seller/roi', sellerRoiRoutes);
+app.use('/api/seller-fee-optimizer', require('./routes/sellerFeeOptimizer'));
 app.use('/api/custom', require('./routes/customFeatures'));
 // // === Batch 09 Gaps & Frontend Mounts ===
 app.use('/api/gap-ai-ebay', require('./routes/batch09GapAi'));

@@ -49,6 +49,7 @@ import GiftCards from './pages/GiftCards';
 import PublicWishlist from './pages/PublicWishlist';
 import SellerEarnings from './pages/SellerEarnings';
 import SellerRoi from './pages/SellerRoi';
+import SellerFeeOptimizer from './pages/SellerFeeOptimizer';
 import SnipingSettings from './pages/SnipingSettings';
 import BundleDiscounts from './pages/BundleDiscounts';
 import MyFeed from './pages/MyFeed';
@@ -123,6 +124,9 @@ import ValidationRules from './pages/ValidationRules';
 // Custom Seller Views (custom-views feature)
 import CustomViewsPage from './pages/CustomViewsPage';
 
+import CodexCustomVizFeature from './pages/CodexCustomVizFeature';
+import CodexOperationsFeature from './pages/CodexOperationsFeature';
+
 function App() {
   return (
     <ErrorBoundary>
@@ -132,6 +136,9 @@ function App() {
           <Router>
             <Layout>
               <Routes>
+        <Route path="/codex/custom-viz" element={<CodexCustomVizFeature />} />
+        <Route path="/codex/operations" element={<CodexOperationsFeature />} />
+
                 {/* Main routes */}
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
@@ -188,6 +195,7 @@ function App() {
                 <Route path="/wishlist/share/:token" element={<PublicWishlist />} />
                 <Route path="/seller/earnings" element={<SellerEarnings />} />
                 <Route path="/seller/roi" element={<SellerRoi />} />
+                <Route path="/seller/fee-optimizer" element={<SellerFeeOptimizer />} />
                 <Route path="/seller/sniping/:productId" element={<SnipingSettings />} />
                 <Route path="/seller/bundle-discounts" element={<BundleDiscounts />} />
                 <Route path="/my-feed" element={<MyFeed />} />

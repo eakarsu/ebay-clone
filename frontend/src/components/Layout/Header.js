@@ -449,6 +449,10 @@ const Header = () => {
               <ListItemIcon><AIIcon color="primary" /></ListItemIcon>
               <ListItemText primary="AI Features" />
             </ListItem>
+            <ListItem button component={Link} to="/custom-views" onClick={() => setMobileMenuOpen(false)} data-testid="sidebar-seller-views">
+              <ListItemIcon><DashboardIcon color="primary" /></ListItemIcon>
+              <ListItemText primary="Seller Views" />
+            </ListItem>
             <Divider />
             <ListItem button component={Link} to="/help" onClick={() => setMobileMenuOpen(false)}>
               <ListItemIcon><HelpIcon /></ListItemIcon>
