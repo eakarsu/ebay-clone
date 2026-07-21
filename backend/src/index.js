@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
+require('./config/production').validateProductionConfig();
 
 const { testConnection } = require('./config/database');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -304,7 +305,7 @@ const startServer = async () => {
   const server = http.createServer(app);
   realtime.init(server);
 
-  server.listen(PORT, () => {
+  server.listen(PORT, process.env.HOST || '127.0.0.1', () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`Socket.IO listening on /socket.io`);
@@ -322,6 +323,12 @@ const startServer = async () => {
       require('./jobs/listingOptimizerScheduler').start();
     } catch (err) {
       console.warn('Listing optimizer scheduler failed to start:', err.message);
+    }
+
+    try {
+      require('./jobs/outboxScheduler').start();
+    } catch (err) {
+      console.warn('Outbox scheduler failed to start:', err.message);
     }
 
     // Cleanup expired blacklisted tokens every hour
@@ -347,4 +354,6 @@ const startServer = async () => {
   });
 };
 
-startServer();
+if (require.main === module) startServer();
+
+module.exports = { app, startServer };

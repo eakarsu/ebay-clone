@@ -12,6 +12,9 @@ const {
   handleWebhook,
   getPaymentHistory,
   sellerPayout,
+  retryMoneyOperation,
+  reconciliationDashboard,
+  replayWebhook,
 } = require('../controllers/paymentController');
 const { authenticateToken } = require('../middleware/auth');
 
@@ -28,6 +31,9 @@ router.post('/create-intent', createPaymentIntent);
 router.post('/confirm', confirmPayment);
 router.post('/refund', processRefund);
 router.post('/seller-payout', sellerPayout);
+router.post('/reconciliation/operations/:id/retry', retryMoneyOperation);
+router.post('/reconciliation/webhooks/:id/replay', replayWebhook);
+router.get('/reconciliation', reconciliationDashboard);
 router.get('/methods', getPaymentMethods);
 router.post('/methods', addPaymentMethod);
 router.post('/methods/direct', addPaymentMethodDirect);

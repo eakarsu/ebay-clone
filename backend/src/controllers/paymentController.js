@@ -1,7 +1,9 @@
 const { pool } = require('../config/database');
 const Stripe = require('stripe');
+const { createMoneyService } = require('../services/moneyLifecycle');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const money = createMoneyService({ pool });
 
 // Get Stripe publishable key for frontend
 const getStripeConfig = async (req, res, next) => {
@@ -42,6 +44,10 @@ const getOrCreateStripeCustomer = async (userId, email) => {
 const createPaymentIntent = async (req, res, next) => {
   try {
     const { orderId } = req.body;
+    const idempotencyKey = req.get('Idempotency-Key') || req.body.idempotencyKey;
+    if (!idempotencyKey || idempotencyKey.length < 12 || idempotencyKey.length > 180) {
+      return res.status(400).json({ error: 'A stable Idempotency-Key is required' });
+    }
 
     // Get order details
     const orderResult = await pool.query(
@@ -65,6 +71,24 @@ const createPaymentIntent = async (req, res, next) => {
     // Calculate amount in cents
     const amount = Math.round(parseFloat(order.total) * 100);
 
+    let operation = (await pool.query('SELECT * FROM payment_operations WHERE idempotency_key=$1', [idempotencyKey])).rows[0];
+    if (operation && (operation.order_id !== order.id || Number(operation.requested_amount_cents) !== amount)) {
+      return res.status(409).json({ error: 'Idempotency key conflicts with an earlier payment request' });
+    }
+    if (operation?.state === 'applied') {
+      return res.json({
+        clientSecret: operation.provider_response.clientSecret,
+        paymentIntentId: operation.provider_object_id,
+        operationId: operation.id,
+        duplicate: true,
+      });
+    }
+    if (!operation) operation = (await pool.query(
+      `INSERT INTO payment_operations(order_id,operation_type,idempotency_key,requested_amount_cents,state,provider_request,created_by)
+       VALUES($1,'payment_intent',$2,$3,'pending_provider',$4,$5) RETURNING *`,
+      [order.id, idempotencyKey, amount, { customerId }, req.user.id],
+    )).rows[0];
+
     // Create payment intent
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
@@ -78,26 +102,33 @@ const createPaymentIntent = async (req, res, next) => {
       automatic_payment_methods: {
         enabled: true,
       },
-    });
+    }, { idempotencyKey });
 
     // Update order with payment intent ID
-    await pool.query(
-      'UPDATE orders SET stripe_payment_intent_id = $1, payment_status = $2 WHERE id = $3',
-      [paymentIntent.id, 'processing', orderId]
-    );
-
-    // Log transaction
-    await pool.query(
-      `INSERT INTO payment_transactions (order_id, user_id, stripe_payment_intent_id, amount, status)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [orderId, req.user.id, paymentIntent.id, order.total, 'pending']
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('UPDATE orders SET stripe_payment_intent_id=$1,payment_status=$2,lifecycle_version=lifecycle_version+1 WHERE id=$3', [paymentIntent.id, 'processing', orderId]);
+      await client.query(
+        `INSERT INTO payment_transactions(order_id,user_id,stripe_payment_intent_id,amount,status)
+         VALUES($1,$2,$3,$4,'pending') ON CONFLICT(stripe_payment_intent_id) DO NOTHING`,
+        [orderId, req.user.id, paymentIntent.id, order.total],
+      );
+      await client.query(`UPDATE payment_operations SET state='applied',provider_object_id=$1,provider_response=$2,attempts=attempts+1,updated_at=NOW() WHERE id=$3`, [paymentIntent.id, { clientSecret: paymentIntent.client_secret, status: paymentIntent.status }, operation.id]);
+      await client.query(`INSERT INTO order_lifecycle_events(order_id,operation_id,source,source_event_id,event_type,from_state,to_state,amount_cents,detail) VALUES($1,$2,'checkout',$3,'payment_intent.created',$4,'processing',$5,$6) ON CONFLICT DO NOTHING`, [order.id, operation.id, paymentIntent.id, order.payment_status, amount, { provider: 'stripe' }]);
+      await client.query(`INSERT INTO marketplace_outbox(aggregate_type,aggregate_id,event_type,idempotency_key,payload) VALUES('order',$1,'payment_intent.created',$2,$3) ON CONFLICT DO NOTHING`, [order.id, `intent:${operation.id}`, { operationId: operation.id, paymentIntentId: paymentIntent.id }]);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
 
     res.json({
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
+      operationId: operation.id,
+      duplicate: false,
     });
   } catch (error) {
+    const idempotencyKey = req.get('Idempotency-Key') || req.body?.idempotencyKey;
+    if (idempotencyKey) await pool.query(`UPDATE payment_operations SET state='retryable_failure',attempts=attempts+1,last_error=$1,next_attempt_at=NOW()+INTERVAL '5 minutes',updated_at=NOW() WHERE idempotency_key=$2 AND state<>'applied'`, [String(error.message).slice(0, 2000), idempotencyKey]).catch(() => {});
     next(error);
   }
 };
@@ -110,21 +141,8 @@ const confirmPayment = async (req, res, next) => {
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status === 'succeeded') {
-      const orderId = paymentIntent.metadata.orderId;
-
-      // Update order
-      await pool.query(
-        'UPDATE orders SET payment_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-        ['completed', orderId]
-      );
-
-      // Update transaction
-      await pool.query(
-        `UPDATE payment_transactions
-         SET status = $1, stripe_charge_id = $2, updated_at = CURRENT_TIMESTAMP
-         WHERE stripe_payment_intent_id = $3`,
-        ['succeeded', paymentIntent.latest_charge, paymentIntentId]
-      );
+      await money.acceptWebhook({ id: `confirm:${paymentIntent.id}:succeeded`, type: 'payment_intent.succeeded', created: Math.floor(Date.now()/1000), data: { object: paymentIntent } });
+      await pool.query('UPDATE payment_transactions SET stripe_charge_id=$1 WHERE stripe_payment_intent_id=$2', [paymentIntent.latest_charge, paymentIntentId]);
 
       // Get receipt URL
       if (paymentIntent.latest_charge) {
@@ -146,78 +164,9 @@ const confirmPayment = async (req, res, next) => {
 
 // Process refund
 const processRefund = async (req, res, next) => {
-  try {
-    const { orderId, amount, reason } = req.body;
-
-    // Verify seller or admin
-    const orderResult = await pool.query(
-      'SELECT * FROM orders WHERE id = $1',
-      [orderId]
-    );
-
-    if (orderResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    const order = orderResult.rows[0];
-
-    // Check permissions (seller or admin)
-    const isAdmin = req.user.is_admin;
-    const isSeller = order.seller_id === req.user.id;
-
-    if (!isAdmin && !isSeller) {
-      return res.status(403).json({ error: 'Not authorized to process refund' });
-    }
-
-    if (!order.stripe_payment_intent_id) {
-      return res.status(400).json({ error: 'No payment found for this order' });
-    }
-
-    // Get the payment intent to find the charge
-    const paymentIntent = await stripe.paymentIntents.retrieve(order.stripe_payment_intent_id);
-
-    if (!paymentIntent.latest_charge) {
-      return res.status(400).json({ error: 'No charge found for this payment' });
-    }
-
-    // Calculate refund amount (in cents)
-    const refundAmount = amount ? Math.round(amount * 100) : undefined;
-
-    // Process refund
-    const refund = await stripe.refunds.create({
-      charge: paymentIntent.latest_charge,
-      amount: refundAmount,
-      reason: reason || 'requested_by_customer',
-    });
-
-    // Update transaction
-    const refundAmountDollars = refund.amount / 100;
-    await pool.query(
-      `UPDATE payment_transactions
-       SET status = $1, refund_amount = refund_amount + $2, updated_at = CURRENT_TIMESTAMP
-       WHERE stripe_payment_intent_id = $3`,
-      [
-        refund.amount === paymentIntent.amount ? 'refunded' : 'partially_refunded',
-        refundAmountDollars,
-        order.stripe_payment_intent_id,
-      ]
-    );
-
-    // Update order
-    await pool.query(
-      `UPDATE orders SET payment_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-      [refund.amount === paymentIntent.amount ? 'refunded' : 'partially_refunded', orderId]
-    );
-
-    res.json({
-      success: true,
-      refundId: refund.id,
-      amount: refundAmountDollars,
-      status: refund.status,
-    });
-  } catch (error) {
-    next(error);
-  }
+  res.status(410).json({
+    error: 'Direct order refunds are retired. Approve and receive a return, then use POST /api/returns/:id/refund with an Idempotency-Key.',
+  });
 };
 
 // Get payment methods for user
@@ -255,6 +204,9 @@ const getPaymentMethods = async (req, res, next) => {
 // Add payment method directly (without Stripe - for demo purposes)
 const addPaymentMethodDirect = async (req, res, next) => {
   try {
+    if (process.env.ALLOW_DIRECT_PAYMENT_METHODS !== 'true' || process.env.NODE_ENV === 'production') {
+      return res.status(410).json({ error: 'Direct payment-method entry is disabled; use a provider token.' });
+    }
     const {
       paymentType,
       cardBrand,
@@ -442,69 +394,48 @@ const handleWebhook = async (req, res) => {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // Handle the event
-  switch (event.type) {
-    case 'payment_intent.succeeded':
-      const paymentIntent = event.data.object;
-      await handlePaymentSuccess(paymentIntent);
-      break;
-
-    case 'payment_intent.payment_failed':
-      const failedPayment = event.data.object;
-      await handlePaymentFailure(failedPayment);
-      break;
-
-    case 'charge.refunded':
-      const refund = event.data.object;
-      console.log('Refund processed:', refund.id);
-      break;
-
-    default:
-      console.log(`Unhandled event type: ${event.type}`);
+  try {
+    const inbox = await money.acceptWebhook(event);
+    res.json({ received: true, duplicate: inbox.duplicate, inboxId: inbox.id, state: inbox.state });
+  } catch (error) {
+    console.error('Webhook inbox failure:', error.message);
+    res.status(503).json({ received: false, error: 'Webhook could not be durably recorded' });
   }
-
-  res.json({ received: true });
 };
 
-const handlePaymentSuccess = async (paymentIntent) => {
-  const orderId = paymentIntent.metadata.orderId;
-  if (!orderId) return;
-
-  await pool.query(
-    'UPDATE orders SET payment_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-    ['completed', orderId]
-  );
-
-  await pool.query(
-    `UPDATE payment_transactions SET status = $1, updated_at = CURRENT_TIMESTAMP
-     WHERE stripe_payment_intent_id = $2`,
-    ['succeeded', paymentIntent.id]
-  );
+const retryMoneyOperation = async (req, res, next) => {
+  try {
+    if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
+    const operation = await money.retryOperation(req.params.id);
+    res.json({ operation });
+  } catch (error) { next(error); }
 };
 
-const handlePaymentFailure = async (paymentIntent) => {
-  const orderId = paymentIntent.metadata.orderId;
-  if (!orderId) return;
+const reconciliationDashboard = async (req, res, next) => {
+  try {
+    if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
+    res.json(await money.dashboard());
+  } catch (error) { next(error); }
+};
 
-  await pool.query(
-    'UPDATE orders SET payment_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-    ['failed', orderId]
-  );
-
-  await pool.query(
-    `UPDATE payment_transactions SET status = $1, updated_at = CURRENT_TIMESTAMP
-     WHERE stripe_payment_intent_id = $2`,
-    ['failed', paymentIntent.id]
-  );
+const replayWebhook = async (req, res, next) => {
+  try {
+    if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
+    res.json({ webhook: await money.replayWebhook(req.params.id) });
+  } catch (error) { next(error); }
 };
 
 // Seller payout via Stripe Connect transfer
 const sellerPayout = async (req, res, next) => {
   try {
     const { orderId } = req.body;
+    const idempotencyKey = req.get('Idempotency-Key') || req.body.idempotencyKey;
 
     if (!orderId) {
       return res.status(400).json({ error: 'orderId is required' });
+    }
+    if (!idempotencyKey || idempotencyKey.length < 12 || idempotencyKey.length > 180) {
+      return res.status(400).json({ error: 'A stable Idempotency-Key is required' });
     }
 
     // Only admins can trigger payouts (or automate this via webhook)
@@ -527,8 +458,8 @@ const sellerPayout = async (req, res, next) => {
 
     const order = orderResult.rows[0];
 
-    if (order.payment_status !== 'completed') {
-      return res.status(400).json({ error: 'Order payment has not been completed' });
+    if (order.payment_status !== 'completed' || order.status !== 'delivered') {
+      return res.status(409).json({ error: 'Only paid and delivered orders are eligible for payout' });
     }
 
     if (!order.seller_stripe_account_id) {
@@ -537,13 +468,13 @@ const sellerPayout = async (req, res, next) => {
       });
     }
 
-    // Check if payout already happened
-    const existingPayout = await pool.query(
-      'SELECT id FROM seller_payouts WHERE order_id = $1 AND status = $2',
-      [orderId, 'succeeded']
+    const blockingCase = await pool.query(
+      `SELECT 1 FROM returns WHERE order_id=$1 AND status NOT IN ('rejected','closed')
+       UNION ALL SELECT 1 FROM disputes WHERE order_id=$1 AND status NOT IN ('resolved','closed') LIMIT 1`,
+      [orderId],
     );
-    if (existingPayout.rows.length > 0) {
-      return res.status(400).json({ error: 'Payout for this order has already been processed' });
+    if (blockingCase.rows[0]) {
+      return res.status(409).json({ error: 'Payout is held while a return or dispute is open' });
     }
 
     // Platform fee: 10% (adjust as needed)
@@ -556,6 +487,21 @@ const sellerPayout = async (req, res, next) => {
       return res.status(400).json({ error: 'Transfer amount after fees must be positive' });
     }
 
+    let operation = (await pool.query('SELECT * FROM payment_operations WHERE idempotency_key=$1', [idempotencyKey])).rows[0];
+    if (operation && (operation.order_id !== order.id || operation.operation_type !== 'payout')) {
+      return res.status(409).json({ error: 'Idempotency key conflicts with an earlier money operation' });
+    }
+    if (operation?.state === 'applied') {
+      return res.json({ success: true, transferId: operation.provider_object_id, duplicate: true });
+    }
+    const existingPayout = (await pool.query("SELECT id FROM seller_payouts WHERE order_id=$1 AND status='succeeded'", [order.id])).rows[0];
+    if (existingPayout) return res.status(409).json({ error: 'This order already has a successful payout' });
+    if (!operation) operation = (await pool.query(
+      `INSERT INTO payment_operations(order_id,operation_type,idempotency_key,requested_amount_cents,seller_amount_cents,platform_amount_cents,state,provider_request,created_by)
+       VALUES($1,'payout',$2,$3,$4,$5,'pending_provider',$6,$7) RETURNING *`,
+      [order.id, idempotencyKey, Math.round(grossAmount * 100), transferAmount, platformFee, { destination: order.seller_stripe_account_id }, req.user.id],
+    )).rows[0];
+
     // Create Stripe Connect transfer
     const transfer = await stripe.transfers.create({
       amount: transferAmount,
@@ -566,25 +512,22 @@ const sellerPayout = async (req, res, next) => {
         orderNumber: order.order_number,
         sellerId: order.seller_id,
       },
-    });
+    }, { idempotencyKey });
 
-    // Record the payout
-    await pool.query(
-      `INSERT INTO seller_payouts (order_id, seller_id, stripe_transfer_id, gross_amount, platform_fee, net_amount, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'succeeded', CURRENT_TIMESTAMP)
-       ON CONFLICT (order_id) DO UPDATE
-         SET stripe_transfer_id = EXCLUDED.stripe_transfer_id,
-             status = 'succeeded',
-             updated_at = CURRENT_TIMESTAMP`,
-      [
-        orderId,
-        order.seller_id,
-        transfer.id,
-        grossAmount,
-        platformFee / 100,
-        transferAmount / 100,
-      ]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO seller_payouts (order_id,seller_id,stripe_transfer_id,gross_amount,platform_fee,net_amount,status,created_at)
+         VALUES($1,$2,$3,$4,$5,$6,'succeeded',NOW()) ON CONFLICT(order_id) DO NOTHING`,
+        [orderId, order.seller_id, transfer.id, grossAmount, platformFee / 100, transferAmount / 100],
+      );
+      await client.query("UPDATE orders SET payout_status='paid',lifecycle_version=lifecycle_version+1,updated_at=NOW() WHERE id=$1", [orderId]);
+      await client.query("UPDATE payment_operations SET state='applied',provider_object_id=$1,provider_response=$2,attempts=attempts+1,last_error=NULL,updated_at=NOW() WHERE id=$3", [transfer.id, transfer, operation.id]);
+      await client.query(`INSERT INTO order_lifecycle_events(order_id,operation_id,source,source_event_id,event_type,from_state,to_state,amount_cents) VALUES($1,$2,'payout',$3,'payout.paid',$4,'paid',$5) ON CONFLICT DO NOTHING`, [orderId, operation.id, transfer.id, order.payout_status, transferAmount]);
+      await client.query(`INSERT INTO marketplace_outbox(aggregate_type,aggregate_id,event_type,idempotency_key,payload) VALUES('order',$1,'payout.paid',$2,$3) ON CONFLICT DO NOTHING`, [orderId, `payout:${operation.id}`, { operationId: operation.id, transferId: transfer.id }]);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
 
     res.json({
       success: true,
@@ -595,6 +538,8 @@ const sellerPayout = async (req, res, next) => {
       destination: order.seller_stripe_account_id,
     });
   } catch (error) {
+    const idempotencyKey = req.get('Idempotency-Key') || req.body?.idempotencyKey;
+    if (idempotencyKey) await pool.query("UPDATE payment_operations SET state='retryable_failure',attempts=attempts+1,last_error=$1,next_attempt_at=NOW()+INTERVAL '5 minutes',updated_at=NOW() WHERE idempotency_key=$2 AND state<>'applied'", [String(error.message).slice(0, 2000), idempotencyKey]).catch(() => {});
     next(error);
   }
 };
@@ -653,4 +598,7 @@ module.exports = {
   handleWebhook,
   getPaymentHistory,
   sellerPayout,
+  retryMoneyOperation,
+  reconciliationDashboard,
+  replayWebhook,
 };

@@ -92,7 +92,7 @@ export default function ListingTemplates() {
     }
   };
 
-  const useTemplate = async (t) => {
+  const applyTemplate = async (t) => {
     try {
       await listingTemplateService.apply(t.id);
     } catch {}
@@ -139,7 +139,7 @@ export default function ListingTemplates() {
                     </Typography>
                   </CardContent>
                   <CardActions>
-                    <Button size="small" startIcon={<ContentCopy />} onClick={() => useTemplate(t)}>Use</Button>
+                    <Button size="small" startIcon={<ContentCopy />} onClick={() => applyTemplate(t)}>Use</Button>
                     <Button size="small" startIcon={<Edit />} onClick={() => openEdit(t)}>Edit</Button>
                     <IconButton size="small" color="error" onClick={() => remove(t.id)}><Delete /></IconButton>
                   </CardActions>

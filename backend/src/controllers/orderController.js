@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const feedbackService = require('../services/feedbackService');
 const { checkAndNotifyLowStock } = require('./lowStockController');
 const { applyReferralOnFirstPurchase } = require('./referralController');
+const { consumeInventory } = require('../services/inventoryLifecycle');
 
 // Validate a coupon code against a running subtotal (and optional seller scope).
 // Returns { coupon, discountAmount } or throws a user-facing Error.
@@ -165,22 +166,10 @@ const createOrder = async (req, res, next) => {
           [order.id, item.productId, item.quantity, price, itemTotal]
         );
 
-        // Update product quantity
-        await client.query(
-          `UPDATE products SET quantity_sold = quantity_sold + $1, updated_at = CURRENT_TIMESTAMP
-           WHERE id = $2`,
-          [item.quantity, item.productId]
-        );
+        // The guarded update is the final database-level oversell barrier, even
+        // if another checkout reached this point with stale availability data.
+        await consumeInventory(client, item.productId, item.quantity);
         stockChangedProductIds.push(item.productId);
-
-        // Check if sold out
-        const updatedProduct = await client.query(
-          'SELECT quantity, quantity_sold FROM products WHERE id = $1',
-          [item.productId]
-        );
-        if (updatedProduct.rows[0].quantity <= updatedProduct.rows[0].quantity_sold) {
-          await client.query("UPDATE products SET status = 'sold' WHERE id = $1", [item.productId]);
-        }
       }
 
       // Record coupon usage for this sub-order (if one was applied).

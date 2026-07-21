@@ -1,4 +1,6 @@
 const { pool } = require('../config/database');
+const { createMoneyService } = require('../services/moneyLifecycle');
+const money = createMoneyService({ pool });
 
 // Create return request
 const createReturn = async (req, res, next) => {
@@ -7,12 +9,13 @@ const createReturn = async (req, res, next) => {
 
     // Get order and verify buyer
     const orderResult = await pool.query(
-      `SELECT o.*, oi.seller_id, p.return_policy, p.return_days
+      `SELECT o.*, p.return_policy, p.return_days
        FROM orders o
        JOIN order_items oi ON o.id = oi.order_id
        JOIN products p ON oi.product_id = p.id
-       WHERE o.id = $1 AND o.buyer_id = $2`,
-      [orderId, req.user.id]
+       WHERE o.id = $1 AND o.buyer_id = $2 AND oi.id = $3
+         AND o.payment_status = 'completed' AND o.status = 'delivered'`,
+      [orderId, req.user.id, orderItemId]
     );
 
     if (orderResult.rows.length === 0) {
@@ -163,7 +166,7 @@ const approveReturn = async (req, res, next) => {
     const { refundType, refundAmount, sellerNotes } = req.body;
 
     const returnResult = await pool.query(
-      'SELECT * FROM returns WHERE id = $1 AND seller_id = $2',
+      "SELECT * FROM returns WHERE id = $1 AND seller_id = $2 AND status = 'requested'",
       [id, req.user.id]
     );
 
@@ -178,7 +181,7 @@ const approveReturn = async (req, res, next) => {
            refund_amount = $2,
            seller_notes = $3,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4 RETURNING *`,
+       WHERE id = $4 AND status = 'requested' RETURNING *`,
       [refundType, refundAmount, sellerNotes, id]
     );
 
@@ -198,7 +201,7 @@ const rejectReturn = async (req, res, next) => {
     const { sellerNotes } = req.body;
 
     const returnResult = await pool.query(
-      'SELECT * FROM returns WHERE id = $1 AND seller_id = $2',
+      "SELECT * FROM returns WHERE id = $1 AND seller_id = $2 AND status = 'requested'",
       [id, req.user.id]
     );
 
@@ -209,7 +212,7 @@ const rejectReturn = async (req, res, next) => {
     const result = await pool.query(
       `UPDATE returns
        SET status = 'rejected', seller_notes = $1, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2 RETURNING *`,
+       WHERE id = $2 AND status = 'requested' RETURNING *`,
       [sellerNotes, id]
     );
 
@@ -285,35 +288,19 @@ const markReturnReceived = async (req, res, next) => {
 const processReturnRefund = async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    const returnResult = await pool.query(
-      'SELECT * FROM returns WHERE id = $1 AND (seller_id = $2 OR $3 = true)',
-      [id, req.user.id, req.user.is_admin]
-    );
-
-    if (returnResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Return not found' });
-    }
-
-    const returnData = returnResult.rows[0];
-
-    if (returnData.status !== 'received') {
-      return res.status(400).json({ error: 'Item must be received before refund' });
-    }
-
-    // Process refund via payment controller would go here
-    // For now, just update status
-
-    const result = await pool.query(
-      `UPDATE returns SET status = 'refunded', updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
-      [id]
-    );
-
-    res.json({
-      success: true,
-      return: result.rows[0],
-      message: 'Refund processed successfully',
+    const idempotencyKey = req.get('Idempotency-Key') || req.body?.idempotencyKey;
+    const operation = await money.requestRefund({
+      returnId: id,
+      actor: req.user,
+      requestedAmount: req.body?.amount,
+      idempotencyKey,
     });
+    const result = await pool.query('SELECT * FROM returns WHERE id=$1', [id]);
+    res.json({ success: true, return: result.rows[0], operation: {
+      id: operation.id, state: operation.state, amountCents: Number(operation.requested_amount_cents),
+      sellerAmountCents: Number(operation.seller_amount_cents), platformAmountCents: Number(operation.platform_amount_cents),
+      providerObjectId: operation.provider_object_id,
+    } });
   } catch (error) {
     next(error);
   }
