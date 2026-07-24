@@ -3,6 +3,12 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
 
+function requireDemoPassword() {
+  const password = process.env.DEMO_PASSWORD;
+  if (!password || password.length < 12) throw new Error('DEMO_PASSWORD must be at least 12 characters');
+  return password;
+}
+
 const seedDatabase = async () => {
   const client = await pool.connect();
 
@@ -16,7 +22,7 @@ const seedDatabase = async () => {
     console.log('Schema created successfully');
 
     // Hash password for all users
-    const passwordHash = await bcrypt.hash('password123', 10);
+    const passwordHash = await bcrypt.hash(requireDemoPassword(), 10);
 
     // ==================== USERS ====================
     console.log('Seeding users...');
@@ -619,9 +625,7 @@ const seedDatabase = async () => {
     `, [userMap['buyer_jane'], userMap['techdeals']]);
 
     console.log('Database seeded successfully!');
-    console.log('\nTest accounts:');
-    console.log('Email: jane@example.com | Password: password123 (buyer)');
-    console.log('Email: techdeals@example.com | Password: password123 (seller)');
+    console.log('\nDemo buyer and seller accounts provisioned.');
 
   } catch (error) {
     console.error('Seed error:', error);

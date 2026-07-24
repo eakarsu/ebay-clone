@@ -14,6 +14,10 @@ import {
 import { Security } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 
+const demoPassword = process.env.REACT_APP_ENABLE_DEMO_CREDENTIAL_AUTOFILL === 'true'
+  ? process.env.REACT_APP_DEMO_PASSWORD || ''
+  : '';
+
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -190,7 +194,7 @@ const Login = () => {
 
             <Box sx={{ bgcolor: 'grey.50', borderRadius: 2, p: 2 }}>
               <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
-                Click to auto-fill (Password: password123)
+                Click an account to auto-fill local demo credentials
               </Typography>
 
               {/* Buyers */}
@@ -201,7 +205,8 @@ const Login = () => {
                 <Button
                   size="small"
                   variant="outlined"
-                  onClick={() => setFormData({ email: 'jane@example.com', password: 'password123' })}
+                  disabled={!demoPassword}
+                  onClick={() => setFormData({ email: 'jane@example.com', password: demoPassword })}
                   sx={{ textTransform: 'none' }}
                 >
                   Jane Doe (buyer_jane)
@@ -209,7 +214,8 @@ const Login = () => {
                 <Button
                   size="small"
                   variant="outlined"
-                  onClick={() => setFormData({ email: 'bob@example.com', password: 'password123' })}
+                  disabled={!demoPassword}
+                  onClick={() => setFormData({ email: 'bob@example.com', password: demoPassword })}
                   sx={{ textTransform: 'none' }}
                 >
                   Bob Anderson (buyer_bob)
@@ -225,7 +231,8 @@ const Login = () => {
                   size="small"
                   variant="contained"
                   color="primary"
-                  onClick={() => setFormData({ email: 'techdeals@example.com', password: 'password123' })}
+                  disabled={!demoPassword}
+                  onClick={() => setFormData({ email: 'techdeals@example.com', password: demoPassword })}
                   sx={{ textTransform: 'none' }}
                 >
                   TechDeals (Electronics)
@@ -234,7 +241,8 @@ const Login = () => {
                   size="small"
                   variant="contained"
                   color="secondary"
-                  onClick={() => setFormData({ email: 'vintage@example.com', password: 'password123' })}
+                  disabled={!demoPassword}
+                  onClick={() => setFormData({ email: 'vintage@example.com', password: demoPassword })}
                   sx={{ textTransform: 'none' }}
                 >
                   VintageTreasures (Collectibles)
@@ -243,7 +251,8 @@ const Login = () => {
                   size="small"
                   variant="contained"
                   color="warning"
-                  onClick={() => setFormData({ email: 'fashion@example.com', password: 'password123' })}
+                  disabled={!demoPassword}
+                  onClick={() => setFormData({ email: 'fashion@example.com', password: demoPassword })}
                   sx={{ textTransform: 'none' }}
                 >
                   Fashionista (Fashion)
@@ -252,7 +261,8 @@ const Login = () => {
                   size="small"
                   variant="contained"
                   color="success"
-                  onClick={() => setFormData({ email: 'sports@example.com', password: 'password123' })}
+                  disabled={!demoPassword}
+                  onClick={() => setFormData({ email: 'sports@example.com', password: demoPassword })}
                   sx={{ textTransform: 'none' }}
                 >
                   SportsGear (Sports)
@@ -261,7 +271,8 @@ const Login = () => {
                   size="small"
                   variant="contained"
                   color="info"
-                  onClick={() => setFormData({ email: 'home@example.com', password: 'password123' })}
+                  disabled={!demoPassword}
+                  onClick={() => setFormData({ email: 'home@example.com', password: demoPassword })}
                   sx={{ textTransform: 'none' }}
                 >
                   HomeEssentials (Home)
@@ -269,7 +280,8 @@ const Login = () => {
                 <Button
                   size="small"
                   variant="outlined"
-                  onClick={() => setFormData({ email: 'books@example.com', password: 'password123' })}
+                  disabled={!demoPassword}
+                  onClick={() => setFormData({ email: 'books@example.com', password: demoPassword })}
                   sx={{ textTransform: 'none' }}
                 >
                   Bookworm (Books)
@@ -277,7 +289,8 @@ const Login = () => {
                 <Button
                   size="small"
                   variant="outlined"
-                  onClick={() => setFormData({ email: 'games@example.com', password: 'password123' })}
+                  disabled={!demoPassword}
+                  onClick={() => setFormData({ email: 'games@example.com', password: demoPassword })}
                   sx={{ textTransform: 'none' }}
                 >
                   GameZone (Games)
@@ -285,7 +298,8 @@ const Login = () => {
                 <Button
                   size="small"
                   variant="outlined"
-                  onClick={() => setFormData({ email: 'art@example.com', password: 'password123' })}
+                  disabled={!demoPassword}
+                  onClick={() => setFormData({ email: 'art@example.com', password: demoPassword })}
                   sx={{ textTransform: 'none' }}
                 >
                   ArtCollector (Art)
