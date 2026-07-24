@@ -1,9 +1,9 @@
 import React from 'react';
 import { Container, Grid, Typography, Box, Stack } from '@mui/material';
-import ListingSalesChart from '../components/CustomViews/ListingSalesChart';
-import CategoryHeatmap from '../components/CustomViews/CategoryHeatmap';
-import ShippingLabelPdf from '../components/CustomViews/ShippingLabelPdf';
-import ListingRulesEditor from '../components/CustomViews/ListingRulesEditor';
+import ListingSalesChart from '../components/customViews/ListingSalesChart';
+import CategoryHeatmap from '../components/customViews/CategoryHeatmap';
+import ShippingLabelPdf from '../components/customViews/ShippingLabelPdf';
+import ListingRulesEditor from '../components/customViews/ListingRulesEditor';
 
 export default function CustomViewsPage() {
   return (

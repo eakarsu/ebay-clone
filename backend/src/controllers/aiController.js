@@ -54,6 +54,38 @@ exports.generateDescription = async (req, res) => {
   }
 };
 
+exports.runtimeReadiness = async (req, res, next) => {
+  const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
+  if (prompt.length < 20 || prompt.length > 4000) {
+    return res.status(400).json({ error: 'prompt must contain between 20 and 4000 characters' });
+  }
+  try {
+    const response = await aiService.makeRequest([
+      {
+        role: 'system',
+        content: 'You are a bounded marketplace operations adviser. Separate deterministic controls from advisory judgment, require human review for refunds, disputes, fraud, identity, sanctions, and payouts, cite uncertainty, and never claim that a payment or refund occurred.',
+      },
+      { role: 'user', content: prompt },
+    ], { maxTokens: 1400, temperature: 0 });
+    const result = response?.choices?.[0]?.message?.content?.trim();
+    const providerReceipt = response?.id?.trim();
+    if (!result || !providerReceipt) throw new Error('OpenRouter returned an incomplete response');
+    const model = response.model || aiService.model;
+    const stored = await aiResultsStore.record({
+      userId: req.user.id,
+      resourceType: 'runtime',
+      resourceId: `marketplace-${req.user.id}`,
+      feature: 'marketplace-readiness',
+      model,
+      usage: response.usage,
+      payload: { result, provider: 'openrouter', providerReceipt },
+      raw: result,
+    });
+    if (!stored?.id) throw new Error('AI result persistence failed');
+    return res.json({ result, model, provider: 'openrouter', providerReceipt, recordId: stored.id, usage: response.usage || null });
+  } catch (error) { return next(error); }
+};
+
 // Get price suggestions
 exports.suggestPrice = async (req, res) => {
   try {

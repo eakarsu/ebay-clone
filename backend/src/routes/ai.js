@@ -12,6 +12,8 @@ const { aiRateLimit } = require('../middleware/rateLimits');
 // could drain the OpenRouter spend overnight.
 router.use(aiRateLimit);
 
+router.post('/runtime-readiness', authenticateToken, aiController.runtimeReadiness);
+
 // Generate product description (auth required for sellers)
 router.post('/generate-description', optionalAuth, aiController.generateDescription);
 

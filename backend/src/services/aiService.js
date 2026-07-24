@@ -9,10 +9,13 @@ class AIService {
     this.apiKey = process.env.OPENROUTER_API_KEY;
     // Cross-project standardized model. Override via env for cost tuning.
     this.model = process.env.OPENROUTER_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
-    this.baseUrl = 'openrouter.ai';
+    this.baseUrl = process.env.OPENROUTER_BASE_URL;
   }
 
   async makeRequest(messages, options = {}) {
+    if (!this.apiKey || !this.model || this.baseUrl !== 'https://openrouter.ai/api/v1') {
+      throw new Error('OpenRouter key, model, and canonical API base are required');
+    }
     return new Promise((resolve, reject) => {
       const data = JSON.stringify({
         model: this.model,
@@ -22,7 +25,7 @@ class AIService {
       });
 
       const requestOptions = {
-        hostname: this.baseUrl,
+        hostname: 'openrouter.ai',
         path: '/api/v1/chat/completions',
         method: 'POST',
         headers: {
@@ -43,7 +46,7 @@ class AIService {
         res.on('end', () => {
           try {
             const parsed = JSON.parse(responseData);
-            if (parsed.error) {
+            if (res.statusCode < 200 || res.statusCode >= 300 || parsed.error) {
               reject(new Error(parsed.error.message || 'AI API Error'));
             } else {
               resolve(parsed);
@@ -56,6 +59,10 @@ class AIService {
 
       req.on('error', (error) => {
         reject(error);
+      });
+
+      req.setTimeout(Number(process.env.OPENROUTER_TIMEOUT_MS || 120000), () => {
+        req.destroy(new Error('OpenRouter request timed out'));
       });
 
       req.write(data);

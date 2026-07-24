@@ -310,25 +310,16 @@ const startServer = async () => {
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`Socket.IO listening on /socket.io`);
 
-    // Start scheduled jobs (digests, saved-search alerts)
-    try {
-      require('./jobs/digestScheduler').start();
-    } catch (err) {
-      console.warn('Digest scheduler failed to start:', err.message);
-    }
-
-    // AI Listing Optimizer — nightly re-score of active listings with
-    // structured suggestions written to products + ai_results.
-    try {
-      require('./jobs/listingOptimizerScheduler').start();
-    } catch (err) {
-      console.warn('Listing optimizer scheduler failed to start:', err.message);
-    }
-
-    try {
-      require('./jobs/outboxScheduler').start();
-    } catch (err) {
-      console.warn('Outbox scheduler failed to start:', err.message);
+    if (process.env.ENABLE_BACKGROUND_JOBS === 'true') {
+      try {
+        require('./jobs/digestScheduler').start();
+        require('./jobs/listingOptimizerScheduler').start();
+        require('./jobs/outboxScheduler').start();
+      } catch (err) {
+        console.warn('Background scheduler failed to start:', err.message);
+      }
+    } else {
+      console.log('Background jobs disabled');
     }
 
     // Cleanup expired blacklisted tokens every hour
