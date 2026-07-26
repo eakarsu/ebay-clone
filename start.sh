@@ -86,6 +86,10 @@ fi
 if [[ "${APPLY_MIGRATIONS:-false}" == "true" ]]; then
   (cd "$BACKEND_DIR" && npm run migrate)
 fi
+if [ "${NODE_ENV:-development}" != production ] && [ "${ENABLE_DEMO_CREDENTIAL_AUTOFILL:-true}" = true ]; then
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$PROJECT_DIR/database/migrations/20260725_local_demo_auth.sql" >/dev/null
+  node "$BACKEND_DIR/src/database/create-admin.js"
+fi
 
 cleanup() {
   [[ -n "${BACKEND_PID:-}" ]] && kill "$BACKEND_PID" 2>/dev/null || true
