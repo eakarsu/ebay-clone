@@ -179,7 +179,7 @@ const Login = () => {
                 '&:hover': { bgcolor: '#2a4dc4' },
               }}
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
         )}
@@ -193,6 +193,16 @@ const Login = () => {
             </Divider>
 
             <Box sx={{ bgcolor: 'grey.50', borderRadius: 2, p: 2 }}>
+              <Button
+                fullWidth
+                type="button"
+                variant="contained"
+                disabled={!demoPassword}
+                onClick={() => setFormData({ email: process.env.REACT_APP_DEMO_EMAIL || 'jane@example.com', password: demoPassword })}
+                sx={{ mb: 2, textTransform: 'none' }}
+              >
+                Auto Fill Demo Credentials
+              </Button>
               <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
                 Click an account to auto-fill local demo credentials
               </Typography>

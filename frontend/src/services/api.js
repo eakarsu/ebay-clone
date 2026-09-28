@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
-const BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:4000';
+const configuredApiUrl = (process.env.REACT_APP_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+const API_URL = configuredApiUrl.endsWith('/api') ? configuredApiUrl : `${configuredApiUrl}/api`;
+const BASE_URL = configuredApiUrl.endsWith('/api') ? configuredApiUrl.slice(0, -4) : configuredApiUrl;
 
 // Helper to get full image URL from relative path
 export const getImageUrl = (path) => {
