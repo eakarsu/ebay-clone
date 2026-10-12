@@ -451,11 +451,12 @@ const getFeaturedStores = async (req, res) => {
        JOIN users u ON s.user_id = u.id
        WHERE s.is_featured = true OR s.is_verified = true
        ORDER BY s.subscriber_count DESC
-       LIMIT 10`
+       LIMIT 20`
     );
 
     res.json(result.rows.map(store => ({
       id: store.id,
+      username: store.username,
       storeName: store.store_name,
       storeSlug: store.store_slug,
       logoUrl: store.logo_url || store.avatar_url,

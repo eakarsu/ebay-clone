@@ -201,8 +201,9 @@ const Login = () => {
                 onClick={() => setFormData({ email: process.env.REACT_APP_DEMO_EMAIL || 'jane@example.com', password: demoPassword })}
                 sx={{ mb: 2, textTransform: 'none' }}
               >
-                Auto Fill Demo Credentials
+                Fill Demo Credentials
               </Button>
+              {!demoPassword && <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Demo credentials are not configured for this frontend. Enter your own account credentials to sign in.</Typography>}
               <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
                 Click an account to auto-fill local demo credentials
               </Typography>

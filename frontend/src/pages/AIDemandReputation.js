@@ -17,6 +17,8 @@ import {
 } from '@mui/material';
 import { TrendingUp, Star, AutoAwesome } from '@mui/icons-material';
 import { aiService } from '../services/api';
+import AIReport from '../components/AIReport';
+import FullFieldPresets from '../components/FullFieldPresets';
 
 const TabPanel = ({ children, value, index, ...other }) => (
   <div role="tabpanel" hidden={value !== index} {...other}>
@@ -35,7 +37,9 @@ const AIDemandReputation = () => {
 
   // reputation state
   const [sellerId, setSellerId] = useState('');
-  const [horizonDays, setHorizonDays] = useState('90');
+  const [historicalMetrics, setHistoricalMetrics] = useState('');
+  const [recentReviews, setRecentReviews] = useState('');
+  const [disputeStats, setDisputeStats] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -62,9 +66,7 @@ const AIDemandReputation = () => {
     try {
       const payload = {
         category: category.trim() || undefined,
-        product_name: productName.trim() || undefined,
-        season: season.trim() || undefined,
-        history: history.trim() || undefined,
+        contextNotes: [productName.trim() && `Product: ${productName.trim()}`, season.trim() && `Season: ${season.trim()}`, history.trim() && `History: ${history.trim()}`].filter(Boolean).join('\n'),
       };
       const res = await aiService.predictDemand(payload);
       setResult(res.data);
@@ -85,8 +87,10 @@ const AIDemandReputation = () => {
     setLoading(true);
     try {
       const payload = {
-        seller_id: sellerId.trim(),
-        horizon_days: horizonDays ? Number(horizonDays) : undefined,
+        sellerId: sellerId.trim(),
+        historicalMetrics: historicalMetrics.trim() ? JSON.parse(historicalMetrics) : {},
+        recentReviews: recentReviews.trim() ? JSON.parse(recentReviews) : [],
+        disputeStats: disputeStats.trim() ? JSON.parse(disputeStats) : {},
       };
       const res = await aiService.predictSellerReputation(payload);
       setResult(res.data);
@@ -122,6 +126,11 @@ const AIDemandReputation = () => {
             <CardContent>
               <TabPanel value={tab} index={0}>
                 <Box component="form" onSubmit={handleDemandSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <FullFieldPresets value={{ category, productName, season, history }} presets={[
+                    { label: 'Headphone demand', values: { category: 'Electronics > Headphones', productName: 'Wireless noise-cancelling headphones', season: 'Holiday shopping', history: 'Example: sales increased during recent promotions; confirm actual sales before forecasting.' } },
+                    { label: 'Garden supplies', values: { category: 'Home & Garden > Gardening', productName: 'Raised garden bed kits', season: 'Spring', history: 'Example: interest rose before planting season; confirm inventory and prior sales.' } },
+                    { label: 'School backpacks', values: { category: 'Clothing > Backpacks', productName: 'Durable school backpacks', season: 'Back-to-school', history: 'Example: demand peaks before term starts; confirm actual order history.' } },
+                  ]} disabled={loading} onChange={(values) => { setCategory(values.category); setProductName(values.productName); setSeason(values.season); setHistory(values.history); }} />
                   <TextField label="Category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Electronics > Headphones" fullWidth disabled={loading} />
                   <TextField label="Product name" value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="e.g. Bluetooth earbuds" fullWidth disabled={loading} />
                   <TextField label="Season" value={season} onChange={(e) => setSeason(e.target.value)} placeholder="e.g. holiday Q4" fullWidth disabled={loading} />
@@ -134,8 +143,16 @@ const AIDemandReputation = () => {
 
               <TabPanel value={tab} index={1}>
                 <Box component="form" onSubmit={handleReputationSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <FullFieldPresets value={{ sellerId, historicalMetrics, recentReviews, disputeStats }} presets={[
+                    { label: 'Stable delivery', values: { historicalMetrics: '{"orders_90d":120,"on_time_rate":0.97}', recentReviews: '[{"rating":5,"comment":"Arrived on time"}]', disputeStats: '{"open":0,"resolved":1}' } },
+                    { label: 'Delivery delays', values: { historicalMetrics: '{"orders_90d":85,"on_time_rate":0.78}', recentReviews: '[{"rating":2,"comment":"Shipment arrived late"}]', disputeStats: '{"open":2,"resolved":1}' } },
+                    { label: 'Improving service', values: { historicalMetrics: '{"orders_90d":64,"on_time_rate":0.91}', recentReviews: '[{"rating":4,"comment":"Good communication"}]', disputeStats: '{"open":0,"resolved":3}' } },
+                  ]} disabled={loading} onChange={(values) => { setHistoricalMetrics(values.historicalMetrics); setRecentReviews(values.recentReviews); setDisputeStats(values.disputeStats); }} />
+                  <Typography variant="body2" color="text.secondary">Enter a real seller ID first. Examples preserve it and provide illustrative metrics only; replace those metrics with verified records before generating.</Typography>
                   <TextField label="Seller ID" value={sellerId} onChange={(e) => setSellerId(e.target.value)} required fullWidth disabled={loading} />
-                  <TextField label="Horizon (days)" type="number" value={horizonDays} onChange={(e) => setHorizonDays(e.target.value)} fullWidth disabled={loading} />
+                  <TextField label="Historical metrics (JSON object)" value={historicalMetrics} onChange={(e) => setHistoricalMetrics(e.target.value)} multiline rows={2} fullWidth disabled={loading} />
+                  <TextField label="Recent reviews (JSON array)" value={recentReviews} onChange={(e) => setRecentReviews(e.target.value)} multiline rows={2} fullWidth disabled={loading} />
+                  <TextField label="Dispute stats (JSON object)" value={disputeStats} onChange={(e) => setDisputeStats(e.target.value)} multiline rows={2} fullWidth disabled={loading} />
                   <Button type="submit" variant="contained" disabled={loading} startIcon={loading ? <CircularProgress size={16} /> : <Star />}>
                     Predict reputation
                   </Button>
@@ -169,13 +186,7 @@ const AIDemandReputation = () => {
                   Submit the form to see AI-generated forecast or analysis.
                 </Typography>
               )}
-              {!loading && result && (
-                <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50', maxHeight: 600, overflow: 'auto' }}>
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
-                    {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
-                  </pre>
-                </Paper>
-              )}
+              {!loading && result && <AIReport response={result.data?.forecast ?? result.data?.analysis ?? result} title={tab === 0 ? 'Demand forecast' : 'Seller reputation'} model={result.data?.model} tokens={result.data?.tokens} />}
             </CardContent>
           </Card>
         </Grid>

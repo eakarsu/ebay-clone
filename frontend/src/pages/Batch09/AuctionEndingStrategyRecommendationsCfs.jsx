@@ -1,5 +1,7 @@
 // // === Batch 09 Gaps & Frontend Mounts ===
 import React, { useState } from 'react';
+import FullFieldPresets from '../../components/FullFieldPresets';
+import AIReport from '../../components/AIReport';
 
 export default function AuctionEndingStrategyRecommendationsPage() {
   const [input, setInput] = useState('');
@@ -27,6 +29,7 @@ export default function AuctionEndingStrategyRecommendationsPage() {
     <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Auction-ending strategy recommendations</h1>
       <p style={{ color: '#666', marginBottom: 16 }}>Generated gap feature for ebay.</p>
+      <FullFieldPresets value={{ input }} presets={[{"label": "Scenario one", "values": {"input": "Review used camera auction with seven-day duration. Use verified records only, identify missing evidence, and flag assumptions."}}, {"label": "Scenario two", "values": {"input": "Review collectible card auction with evening and afternoon closing options. Use verified records only, identify missing evidence, and flag assumptions."}}, {"label": "Scenario three", "values": {"input": "Review vintage watch auction with international buyers and reserve price. Use verified records only, identify missing evidence, and flag assumptions."}}]} disabled={loading} onChange={({ input: next }) => setInput(next)} />
       <textarea
         value={input}
         onChange={e => setInput(e.target.value)}
@@ -42,11 +45,7 @@ export default function AuctionEndingStrategyRecommendationsPage() {
         {loading ? 'Running...' : 'Run AI'}
       </button>
       {error && <div style={{ color: 'red', marginTop: 12 }}>{error}</div>}
-      {result && (
-        <pre style={{ marginTop: 16, padding: 12, background: '#f4f4f4', borderRadius: 6, overflow: 'auto', maxHeight: 500 }}>
-{JSON.stringify(result, null, 2)}
-        </pre>
-      )}
+      {result && <AIReport response={result} title="AuctionEndingStrategyRecommendations" />}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import AIReportLibrary from "./components/AIReportLibrary";
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeModeProvider } from './context/ThemeContext';
@@ -129,7 +130,7 @@ import CodexOperationsFeature from './pages/CodexOperationsFeature';
 
 function App() {
   return (
-    <ErrorBoundary>
+    <><AIReportLibrary floating /><ErrorBoundary>
     <ThemeModeProvider>
       <AuthProvider>
         <CartProvider>
@@ -293,7 +294,7 @@ function App() {
         </CartProvider>
       </AuthProvider>
     </ThemeModeProvider>
-    </ErrorBoundary>
+    </ErrorBoundary></>
   );
 }
 

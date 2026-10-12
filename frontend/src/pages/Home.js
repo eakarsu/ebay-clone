@@ -34,13 +34,13 @@ const Home = () => {
       try {
         const [catRes, featuredRes, recentRes] = await Promise.all([
           categoryService.getAll(),
-          productService.getAll({ limit: 4, sortBy: 'view_count', sortOrder: 'desc' }),
-          productService.getAll({ limit: 8, sortBy: 'created_at', sortOrder: 'desc' }),
+          productService.getAll({ limit: 20, sortBy: 'view_count', sortOrder: 'desc' }),
+          productService.getAll({ limit: 20, sortBy: 'created_at', sortOrder: 'desc' }),
         ]);
 
-        setCategories(catRes.data.categories);
-        setFeaturedProducts(featuredRes.data.products);
-        setRecentProducts(recentRes.data.products);
+        setCategories(Array.isArray(catRes.data.categories) ? catRes.data.categories : []);
+        setFeaturedProducts(Array.isArray(featuredRes.data.products) ? featuredRes.data.products : []);
+        setRecentProducts(Array.isArray(recentRes.data.products) ? recentRes.data.products : []);
       } catch (error) {
         console.error('Error fetching home data:', error);
       } finally {
@@ -153,7 +153,7 @@ const Home = () => {
                     <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
                   </Grid>
                 ))
-              : categories.slice(0, 6).map((category) => (
+              : categories.slice(0, 20).map((category) => (
                   <Grid item xs={6} sm={4} md={2} key={category.id}>
                     <Card
                       component={Link}

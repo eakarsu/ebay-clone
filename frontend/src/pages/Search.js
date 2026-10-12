@@ -119,8 +119,8 @@ const Search = () => {
     try {
       const params = buildApiParams(filterState, page);
       const response = await productService.getAll(params);
-      setProducts(response.data.products);
-      setPagination(response.data.pagination);
+      setProducts(Array.isArray(response.data.products) ? response.data.products : []);
+      setPagination(response.data.pagination || { page, pages: 1, total: 0 });
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {

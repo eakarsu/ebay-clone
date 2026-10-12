@@ -1,0 +1,58 @@
+[
+  {
+    "name": "AiDemandPredictionBySkucategoryPage",
+    "id": "gap-ai-ebay/ai-demand-prediction-by-skucategory",
+    "title": "AI demand-prediction by SKU/category",
+    "description": "Prepare a professional advisory report for ai demand-prediction by sku/category using the brief and evidence you provide. Review the findings, assumptions, and action plan before applying changes.",
+    "samples": []
+  },
+  {
+    "name": "AiPredictiveLogisticsEtaPage",
+    "id": "gap-ai-ebay/ai-predictive-logistics-eta",
+    "title": "AI predictive logistics ETA",
+    "description": "Prepare a professional advisory report for ai predictive logistics eta using the brief and evidence you provide. Review the findings, assumptions, and action plan before applying changes.",
+    "samples": []
+  },
+  {
+    "name": "AiSellerFraudReputationScoringPage",
+    "id": "gap-ai-ebay/ai-seller-fraud-reputation-scoring",
+    "title": "AI seller-fraud reputation scoring",
+    "description": "Prepare a professional advisory report for ai seller-fraud reputation scoring using the brief and evidence you provide. Review the findings, assumptions, and action plan before applying changes.",
+    "samples": []
+  },
+  {
+    "name": "BulkListingImportMigrationToolsPage",
+    "id": "gap-nonai-ebay/bulk-listing-import-migration-tools",
+    "title": "Bulk listing import / migration tools",
+    "description": "Prepare a professional advisory report for bulk listing import / migration tools using the brief and evidence you provide. Review the findings, assumptions, and action plan before applying changes.",
+    "samples": []
+  },
+  {
+    "name": "DeepCarrierShippingIntegrationsFedexupsdhlApisPage",
+    "id": "gap-nonai-ebay/deep-carrier-shipping-integrations-fedexupsdhl-apis",
+    "title": "Deep carrier shipping integrations (FedEx/UPS/DHL APIs)",
+    "description": "Prepare a professional advisory report for deep carrier shipping integrations (fedex/ups/dhl apis) using the brief and evidence you provide. Review the findings, assumptions, and action plan before applying changes.",
+    "samples": []
+  },
+  {
+    "name": "InventorySyncWithSellerErpsPage",
+    "id": "gap-nonai-ebay/inventory-sync-with-seller-erps",
+    "title": "Inventory sync with seller ERPs",
+    "description": "Prepare a professional advisory report for inventory sync with seller erps using the brief and evidence you provide. Review the findings, assumptions, and action plan before applying changes.",
+    "samples": []
+  },
+  {
+    "name": "MultiMarketplaceCrossListingPage",
+    "id": "gap-nonai-ebay/multi-marketplace-cross-listing",
+    "title": "Multi-marketplace cross-listing",
+    "description": "Prepare a professional advisory report for multi-marketplace cross-listing using the brief and evidence you provide. Review the findings, assumptions, and action plan before applying changes.",
+    "samples": []
+  },
+  {
+    "name": "TaxVatComplianceEnginePage",
+    "id": "gap-nonai-ebay/tax-vat-compliance-engine",
+    "title": "Tax / VAT compliance engine",
+    "description": "Prepare a professional advisory report for tax / vat compliance engine using the brief and evidence you provide. Review the findings, assumptions, and action plan before applying changes.",
+    "samples": []
+  }
+]

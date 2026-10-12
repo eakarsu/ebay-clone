@@ -45,6 +45,8 @@ import {
   Star,
 } from '@mui/icons-material';
 import { aiService } from '../services/api';
+import AIReport from '../components/AIReport';
+import FullFieldPresets from '../components/FullFieldPresets';
 
 const TabPanel = ({ children, value, index, ...other }) => (
   <div role="tabpanel" hidden={value !== index} {...other}>
@@ -52,109 +54,15 @@ const TabPanel = ({ children, value, index, ...other }) => (
   </div>
 );
 
-// Beautiful AI Response Display Component
-const AIResponseDisplay = ({ response, title, icon }) => {
-  if (!response) return null;
+// Keep the existing report renderer for native AI responses, including structured JSON.
+const AIResponseDisplay = ({ response, title }) => <AIReport response={response} title={title} />;
 
-  // Parse the response and display beautifully
-  const formatResponse = (text) => {
-    if (!text) return null;
-
-    // Split by numbered items or bullet points
-    const sections = text.split(/\n(?=\d+\.|[-*]|\*\*)/);
-
-    return sections.map((section, idx) => {
-      // Check if it's a header (starts with **)
-      if (section.startsWith('**') && section.includes('**')) {
-        const headerMatch = section.match(/\*\*(.+?)\*\*/);
-        const headerText = headerMatch ? headerMatch[1] : '';
-        const restText = section.replace(/\*\*(.+?)\*\*/, '').trim();
-
-        return (
-          <Box key={idx} sx={{ mb: 2 }}>
-            <Typography variant="h6" color="primary" sx={{ fontWeight: 600, mb: 1 }}>
-              {headerText}
-            </Typography>
-            {restText && (
-              <Typography variant="body1" sx={{ pl: 2, color: 'text.secondary' }}>
-                {restText}
-              </Typography>
-            )}
-          </Box>
-        );
-      }
-
-      // Check if it's a numbered item
-      if (/^\d+\./.test(section.trim())) {
-        const numMatch = section.match(/^(\d+)\.\s*(.+)/s);
-        if (numMatch) {
-          return (
-            <Box key={idx} sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
-              <Chip
-                label={numMatch[1]}
-                size="small"
-                color="primary"
-                sx={{ mr: 2, mt: 0.5, minWidth: 32 }}
-              />
-              <Typography variant="body1">{numMatch[2].trim()}</Typography>
-            </Box>
-          );
-        }
-      }
-
-      // Check if it's a bullet point
-      if (/^[-*]/.test(section.trim())) {
-        return (
-          <Box key={idx} sx={{ display: 'flex', alignItems: 'flex-start', mb: 1, pl: 2 }}>
-            <CheckCircle sx={{ fontSize: 18, color: 'success.main', mr: 1, mt: 0.3 }} />
-            <Typography variant="body2">{section.replace(/^[-*]\s*/, '').trim()}</Typography>
-          </Box>
-        );
-      }
-
-      // Regular paragraph
-      if (section.trim()) {
-        return (
-          <Typography key={idx} variant="body1" sx={{ mb: 2 }}>
-            {section.trim()}
-          </Typography>
-        );
-      }
-
-      return null;
-    });
-  };
-
-  return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: 3,
-        mt: 3,
-        bgcolor: 'background.default',
-        border: '1px solid',
-        borderColor: 'divider',
-        borderRadius: 2,
-      }}
-    >
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        {icon}
-        <Typography variant="h6" sx={{ ml: 1, fontWeight: 600 }}>
-          {title}
-        </Typography>
-        <Chip
-          label="AI Generated"
-          size="small"
-          icon={<AutoAwesome sx={{ fontSize: 14 }} />}
-          sx={{ ml: 'auto' }}
-          color="secondary"
-        />
-      </Box>
-      <Divider sx={{ mb: 2 }} />
-      <Box sx={{ maxHeight: 400, overflow: 'auto' }}>{formatResponse(response)}</Box>
-    </Paper>
-  );
-};
+const productExamples = [
+  { label: 'Wireless headphones', values: { title: 'Sony WH-1000XM4 wireless headphones', category: 'Electronics > Headphones', condition: 'good', price: '179', features: 'Noise cancellation, carrying case, USB-C charging cable; light wear on ear pads', description: 'Used headphones with working noise cancellation and a carrying case. Light cosmetic wear on ear pads.', images: 3, productTitle: 'Sony WH-1000XM4 wireless headphones', productDescription: 'Used headphones with working noise cancellation, case, and USB-C cable; light wear on ear pads.', question: 'Is the charging cable included?' } },
+  { label: 'Vintage camera', values: { title: 'Canon AE-1 35mm film camera', category: 'Cameras > Film Cameras', condition: 'good', price: '145', features: '50mm lens, tested shutter, fresh battery; minor body scuffs', description: 'Canon AE-1 with 50mm lens. Shutter tested; minor body scuffs are visible.', images: 4, productTitle: 'Canon AE-1 35mm film camera', productDescription: 'Film camera with 50mm lens, tested shutter, and minor cosmetic scuffs.', question: 'Has the shutter been tested?' } },
+  { label: 'Office chair', values: { title: 'Herman Miller Aeron Size B chair', category: 'Home & Garden > Office Chairs', condition: 'like_new', price: '495', features: 'Adjustable arms, lumbar support, mesh seat; local pickup available', description: 'Size B Aeron with adjustable arms and lumbar support. Mesh is intact; local pickup available.', images: 5, productTitle: 'Herman Miller Aeron Size B chair', productDescription: 'Size B chair with adjustable arms, lumbar support, and intact mesh.', question: 'Is local pickup available?' } },
+];
+const examplesFor = (keys) => productExamples.map(({ label, values }) => ({ label, values: Object.fromEntries(keys.map((key) => [key, values[key]])) }));
 
 // Score Display Component
 const ScoreDisplay = ({ score, label }) => (
@@ -451,6 +359,7 @@ const AIFeatures = () => {
             <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
               Generate Product Description
             </Typography>
+            <FullFieldPresets value={descriptionForm} presets={examplesFor(['title', 'category', 'condition', 'price', 'features'])} disabled={loading} onChange={setDescriptionForm} />
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
                 <TextField
@@ -535,6 +444,7 @@ const AIFeatures = () => {
             <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
               Get Smart Price Suggestions
             </Typography>
+            <FullFieldPresets value={priceForm} presets={examplesFor(['title', 'category', 'condition', 'description'])} disabled={loading} onChange={setPriceForm} />
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
                 <TextField
@@ -606,6 +516,7 @@ const AIFeatures = () => {
             <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
               Analyze Listing Quality
             </Typography>
+            <FullFieldPresets value={listingForm} presets={examplesFor(['title', 'description', 'images', 'price', 'category', 'condition'])} disabled={loading} onChange={setListingForm} />
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
                 <TextField
@@ -679,6 +590,7 @@ const AIFeatures = () => {
             <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
               AI Q&A Assistant
             </Typography>
+            <FullFieldPresets value={questionForm} presets={examplesFor(['productTitle', 'productDescription', 'question'])} disabled={loading} onChange={setQuestionForm} />
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
                 <TextField
@@ -793,6 +705,11 @@ const AIFeatures = () => {
                 </Box>
               )}
             </Paper>
+            <FullFieldPresets value={{ chatInput }} presets={[
+              { label: 'Order help', values: { chatInput: 'How can I check the shipping status of an order?' } },
+              { label: 'Return help', values: { chatInput: 'What steps should I follow to request a return?' } },
+              { label: 'Selling help', values: { chatInput: 'How do I improve a listing with clear photos and details?' } },
+            ]} disabled={loading} onChange={({ chatInput: next }) => setChatInput(next)} />
             <Box sx={{ display: 'flex', gap: 1 }}>
               <TextField
                 fullWidth
